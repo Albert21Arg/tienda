@@ -1,9 +1,10 @@
-import { OrderStatus, Permission, Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { OrderStatus, Permission } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
+import { d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 import { releaseExpiredReservations } from "@/lib/inventory.server";
 
 export async function GET() {
@@ -44,89 +45,112 @@ export async function PATCH(request: Request) {
 
   try {
     if (input.data.status === OrderStatus.CANCELLED) await releaseExpiredReservations();
-    const updated = await prisma.$transaction(async (transaction) => {
-      const order = await transaction.order.findUnique({
-        where: { id: input.data.orderId },
-        include: {
-          items: true,
-          payments: { include: { method: { select: { code: true } } } },
-        },
-      });
-      if (!order) return null;
-      if (
-        input.data.status === OrderStatus.PAID &&
-        !(await transaction.payment.findFirst({
-          where: { orderId: order.id, status: "APPROVED" },
-          select: { id: true },
-        }))
-      ) {
-        throw new Error("PAGO_NO_APROBADO");
-      }
-      if (!transitions[order.status].includes(input.data.status)) {
-        throw new Error("TRANSICION_INVALIDA");
-      }
-      if (input.data.status === OrderStatus.CANCELLED && order.status === OrderStatus.PENDING_PAYMENT) {
-        for (const payment of order.payments) {
-          if (payment.method?.code !== "QR_MANUAL" || payment.status !== "PENDING" || !payment.providerRef) continue;
-          const reservations = await transaction.inventoryReservation.findMany({
-            where: { cartId: payment.providerRef, status: "ACTIVE" },
-            select: { id: true, variantId: true, quantity: true },
-          });
-          for (const reservation of reservations) {
-            const released = await transaction.inventoryReservation.updateMany({
-              where: { id: reservation.id, status: "CONVERTED" },
-              data: { status: "CANCELLED" },
-            });
-            if (released.count !== 1) continue;
-            const stockReleased = await transaction.$executeRaw(Prisma.sql`
-              UPDATE "ProductVariant"
-              SET "stockReserved" = "stockReserved" - ${reservation.quantity},
-                  "updatedAt" = NOW()
-              WHERE "id" = ${reservation.variantId}
-                AND "stockReserved" >= ${reservation.quantity}
-            `);
-            if (stockReleased !== 1) throw new Error("INVENTARIO_RESERVADO_INCONSISTENTE");
-            const variant = await transaction.productVariant.findUniqueOrThrow({
-              where: { id: reservation.variantId },
-              select: { stockOnHand: true },
-            });
-            await transaction.inventoryMovement.create({
-              data: {
-                variantId: reservation.variantId,
-                type: "RESERVATION_RELEASE",
-                quantity: reservation.quantity,
-                previousStock: variant.stockOnHand,
-                newStock: variant.stockOnHand,
-                actorId: access.session.userId,
-                reason: `Pedido ${order.orderNumber} cancelado`,
-              },
-            });
-          }
-          await transaction.payment.updateMany({
-            where: { id: payment.id, status: "PENDING" },
-            data: { status: "CANCELLED", reason: input.data.reason },
-          });
-        }
-      }
-      const result = await transaction.order.updateMany({
-        where: { id: order.id, status: order.status },
-        data: { status: input.data.status },
-      });
-      if (result.count !== 1) throw new Error("CONFLICTO_PEDIDO");
-      await transaction.auditLog.create({
-        data: {
-          actorId: access.session.userId,
-          action: "ORDER_STATUS_UPDATE",
-          entity: "Order",
-          entityId: order.id,
-          previousValue: { status: order.status } satisfies Prisma.InputJsonObject,
-          newValue: { status: input.data.status } satisfies Prisma.InputJsonObject,
-          reason: input.data.reason,
-        },
-      });
-      return { id: order.id, orderNumber: order.orderNumber, status: input.data.status };
+    const order = await prisma.order.findUnique({
+      where: { id: input.data.orderId },
+      include: {
+        items: true,
+        payments: { include: { method: { select: { code: true } } } },
+      },
     });
-    if (!updated) return NextResponse.json({ error: "Pedido no encontrado." }, { status: 404 });
+    if (!order) return NextResponse.json({ error: "Pedido no encontrado." }, { status: 404 });
+    if (
+      input.data.status === OrderStatus.PAID &&
+      !order.payments.some((payment) => payment.status === "APPROVED")
+    ) {
+      throw new Error("PAGO_NO_APROBADO");
+    }
+    if (!transitions[order.status].includes(input.data.status)) {
+      throw new Error("TRANSICION_INVALIDA");
+    }
+
+    const now = new Date();
+    const statements = [];
+    if (input.data.status === OrderStatus.CANCELLED && order.status === OrderStatus.PENDING_PAYMENT) {
+      for (const payment of order.payments) {
+        if (payment.method?.code !== "QR_MANUAL" || payment.status !== "PENDING" || !payment.providerRef) continue;
+        const reservations = await prisma.inventoryReservation.findMany({
+          where: { cartId: payment.providerRef, status: "ACTIVE" },
+          select: { id: true, variantId: true, quantity: true, cartId: true },
+        });
+        for (const reservation of reservations) {
+          statements.push(d1Statement(
+            `UPDATE "InventoryReservation" SET "status" = 'CANCELLED'
+             WHERE "id" = ? AND "status" = 'ACTIVE'`,
+            reservation.id,
+          ));
+          d1ExpectChanges(statements);
+          statements.push(d1Statement(
+            `UPDATE "ProductVariant"
+             SET "stockReserved" = "stockReserved" - ?, "updatedAt" = ?
+             WHERE "id" = ? AND "stockReserved" >= ?`,
+            reservation.quantity,
+            now.toISOString(),
+            reservation.variantId,
+            reservation.quantity,
+          ));
+          d1ExpectChanges(statements);
+          statements.push(d1Statement(
+            `UPDATE "CartItem" SET "quantity" = "quantity" - ?, "updatedAt" = ?
+             WHERE "cartId" = ? AND "variantId" = ? AND "quantity" >= ?`,
+            reservation.quantity,
+            now.toISOString(),
+            reservation.cartId,
+            reservation.variantId,
+            reservation.quantity,
+          ));
+          d1ExpectChanges(statements);
+          statements.push(d1Statement(
+            `DELETE FROM "CartItem" WHERE "cartId" = ? AND "variantId" = ? AND "quantity" <= 0`,
+            reservation.cartId,
+            reservation.variantId,
+          ));
+          statements.push(d1Statement(
+            `INSERT INTO "InventoryMovement"
+              ("id", "variantId", "type", "quantity", "previousStock", "newStock", "actorId", "reason", "createdAt")
+             SELECT ?, "id", 'RESERVATION_RELEASE', ?, "stockOnHand", "stockOnHand", ?, ?, ?
+             FROM "ProductVariant" WHERE "id" = ?`,
+            randomUUID(),
+            reservation.quantity,
+            access.session.userId,
+            `Pedido ${order.orderNumber} cancelado`,
+            now.toISOString(),
+            reservation.variantId,
+          ));
+          d1ExpectChanges(statements);
+        }
+        statements.push(d1Statement(
+          `UPDATE "Payment" SET "status" = 'CANCELLED', "reason" = ?, "updatedAt" = ?
+           WHERE "id" = ? AND "status" = 'PENDING'`,
+          input.data.reason,
+          now.toISOString(),
+          payment.id,
+        ));
+        d1ExpectChanges(statements);
+      }
+    }
+    statements.push(d1Statement(
+      `UPDATE "Order" SET "status" = ?, "updatedAt" = ? WHERE "id" = ? AND "status" = ?`,
+      input.data.status,
+      now.toISOString(),
+      order.id,
+      order.status,
+    ));
+    d1ExpectChanges(statements);
+    statements.push(d1Statement(
+      `INSERT INTO "AuditLog"
+        ("id", "actorId", "action", "entity", "entityId", "previousValue", "newValue", "reason", "createdAt")
+       VALUES (?, ?, 'ORDER_STATUS_UPDATE', 'Order', ?, ?, ?, ?, ?)`,
+      randomUUID(),
+      access.session.userId,
+      order.id,
+      JSON.stringify({ status: order.status }),
+      JSON.stringify({ status: input.data.status }),
+      input.data.reason,
+      now.toISOString(),
+    ));
+    d1ExpectChanges(statements);
+    await runD1Batch(statements);
+    const updated = { id: order.id, orderNumber: order.orderNumber, status: input.data.status };
     return NextResponse.json({ order: updated });
   } catch (error) {
     if (error instanceof Error && error.message === "TRANSICION_INVALIDA") {

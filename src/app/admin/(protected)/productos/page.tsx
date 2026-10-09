@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { BrandName } from "@/components/brand-mark";
+import { parseProductImages } from "@/lib/product-images";
 
 export default async function AdminProductsPage() {
   const session = await getSession();
@@ -31,7 +32,7 @@ export default async function AdminProductsPage() {
           name: product.name,
           slug: product.slug,
           description: product.description,
-          image: product.images[0] ?? "",
+          image: parseProductImages(product.images)[0] ?? "",
           segment: product.segment,
           categoryId: product.categoryId,
           categoryName: product.category.name,

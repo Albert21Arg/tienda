@@ -51,15 +51,15 @@ export default async function AdminOrdersPage({
   const where: Prisma.OrderWhereInput = query
     ? {
         OR: [
-          { orderNumber: { contains: query, mode: "insensitive" } },
-          { guestEmail: { contains: query, mode: "insensitive" } },
+          { orderNumber: { contains: query } },
+          { guestEmail: { contains: query } },
           {
             customer: {
               is: {
                 OR: [
-                  { name: { contains: query, mode: "insensitive" } },
-                  { email: { contains: query, mode: "insensitive" } },
-                  { phone: { contains: query, mode: "insensitive" } },
+                  { name: { contains: query } },
+                  { email: { contains: query } },
+                  { phone: { contains: query } },
                 ],
               },
             },

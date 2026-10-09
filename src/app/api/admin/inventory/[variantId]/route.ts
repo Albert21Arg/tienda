@@ -1,9 +1,10 @@
-import { Permission, Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { Permission } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
+import { D1AtomicAssertionError, d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 
 const adjustmentSchema = z.object({
   stockOnHand: z.number().int().min(0),
@@ -22,66 +23,79 @@ export async function PATCH(
   const input = adjustmentSchema.safeParse(await readJson(request));
   if (!input.success) return NextResponse.json({ error: "Ajuste de inventario inválido." }, { status: 400 });
 
-  const result = await prisma.$transaction(async (transaction) => {
-    const variant = await transaction.productVariant.findUnique({
-      where: { id: variantId },
-      include: { product: { select: { name: true } } },
-    });
-    if (!variant) return null;
-    const stockMin = input.data.stockMin ?? variant.stockMin;
-    const updated = await transaction.$executeRaw(Prisma.sql`
-      UPDATE "ProductVariant"
-      SET "stockOnHand" = ${input.data.stockOnHand},
-          "stockMin" = ${stockMin},
-          "updatedAt" = NOW()
-      WHERE "id" = ${variantId} AND "stockReserved" <= ${input.data.stockOnHand}
-    `);
-    if (updated !== 1) return { conflict: true as const };
-    const updatedVariant = await transaction.productVariant.findUniqueOrThrow({ where: { id: variantId } });
-    const difference = input.data.stockOnHand - variant.stockOnHand;
-    const changed = difference !== 0 || stockMin !== variant.stockMin;
-    if (difference !== 0) {
-      await transaction.inventoryMovement.create({
-        data: {
-          variantId,
-          type: "ADJUSTMENT",
-          quantity: difference,
-          previousStock: variant.stockOnHand,
-          newStock: input.data.stockOnHand,
-          actorId: access.session.userId,
-          reason: input.data.reason,
-        },
-      });
-    }
-    if (changed) {
-      await transaction.auditLog.create({
-        data: {
-          actorId: access.session.userId,
-          action: "INVENTORY_ADJUST",
-          entity: "ProductVariant",
-          entityId: variantId,
-          previousValue: {
-            stockOnHand: variant.stockOnHand,
-            stockMin: variant.stockMin,
-          } satisfies Prisma.InputJsonObject,
-          newValue: {
-            stockOnHand: updatedVariant.stockOnHand,
-            stockMin: updatedVariant.stockMin,
-          } satisfies Prisma.InputJsonObject,
-          reason: input.data.reason,
-        },
-      });
-    }
-    return {
-      conflict: false as const,
-      product: variant.product.name,
-      sku: updatedVariant.sku,
-      stockOnHand: updatedVariant.stockOnHand,
-      stockReserved: updatedVariant.stockReserved,
-      stockMin: updatedVariant.stockMin,
-    };
+  const variant = await prisma.productVariant.findUnique({
+    where: { id: variantId },
+    include: { product: { select: { name: true } } },
   });
-  if (!result) return NextResponse.json({ error: "Variante no encontrada." }, { status: 404 });
-  if (result.conflict) return NextResponse.json({ error: "El stock no puede quedar por debajo de las unidades reservadas." }, { status: 409 });
-  return NextResponse.json({ variant: result });
+  if (!variant) return NextResponse.json({ error: "Variante no encontrada." }, { status: 404 });
+  const stockMin = input.data.stockMin ?? variant.stockMin;
+  const difference = input.data.stockOnHand - variant.stockOnHand;
+  const changed = difference !== 0 || stockMin !== variant.stockMin;
+  const now = new Date();
+  const statements = [d1Statement(
+    `UPDATE "ProductVariant"
+     SET "stockOnHand" = ?, "stockMin" = ?, "updatedAt" = ?
+     WHERE "id" = ? AND "stockReserved" <= ?`,
+    input.data.stockOnHand,
+    stockMin,
+    now.toISOString(),
+    variantId,
+    input.data.stockOnHand,
+  )];
+  d1ExpectChanges(statements);
+  if (difference !== 0) {
+    statements.push(d1Statement(
+      `INSERT INTO "InventoryMovement"
+        ("id", "variantId", "type", "quantity", "previousStock", "newStock", "actorId", "reason", "createdAt")
+       VALUES (?, ?, 'ADJUSTMENT', ?, ?, ?, ?, ?, ?)`,
+      randomUUID(),
+      variantId,
+      difference,
+      variant.stockOnHand,
+      input.data.stockOnHand,
+      access.session.userId,
+      input.data.reason,
+      now.toISOString(),
+    ));
+    d1ExpectChanges(statements);
+  }
+  if (changed) {
+    statements.push(d1Statement(
+      `INSERT INTO "AuditLog"
+        ("id", "actorId", "action", "entity", "entityId", "previousValue", "newValue", "reason", "createdAt")
+       VALUES (?, ?, 'INVENTORY_ADJUST', 'ProductVariant', ?, ?, ?, ?, ?)`,
+      randomUUID(),
+      access.session.userId,
+      variantId,
+      JSON.stringify({ stockOnHand: variant.stockOnHand, stockMin: variant.stockMin }),
+      JSON.stringify({ stockOnHand: input.data.stockOnHand, stockMin }),
+      input.data.reason,
+      now.toISOString(),
+    ));
+    d1ExpectChanges(statements);
+  }
+  try {
+    await runD1Batch(statements);
+  } catch (error) {
+    if (error instanceof D1AtomicAssertionError) {
+      const latest = await prisma.productVariant.findUnique({
+        where: { id: variantId },
+        select: { id: true, stockReserved: true },
+      });
+      if (!latest) return NextResponse.json({ error: "Variante no encontrada." }, { status: 404 });
+      if (latest.stockReserved > input.data.stockOnHand) {
+        return NextResponse.json({ error: "El stock no puede quedar por debajo de las unidades reservadas." }, { status: 409 });
+      }
+    }
+    throw error;
+  }
+  return NextResponse.json({
+    variant: {
+      product: variant.product.name,
+      sku: variant.sku,
+      stockOnHand: input.data.stockOnHand,
+      stockReserved: variant.stockReserved,
+      stockMin,
+    },
+  });
 }

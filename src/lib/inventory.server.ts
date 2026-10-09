@@ -1,5 +1,5 @@
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { randomUUID } from "node:crypto";
+import { prisma, d1ExpectChanges, d1Statement, runD1Batch } from "@/lib/prisma";
 
 export async function releaseExpiredReservations() {
   const now = new Date();
@@ -10,49 +10,58 @@ export async function releaseExpiredReservations() {
   });
   if (!expired.length) return 0;
 
-  return prisma.$transaction(async (transaction) => {
-    let releasedCount = 0;
-    for (const reservation of expired) {
-      const changed = await transaction.inventoryReservation.updateMany({
-        where: { id: reservation.id, status: "ACTIVE", expiresAt: { lte: now } },
-        data: { status: "EXPIRED" },
-      });
-      if (changed.count !== 1) continue;
-      const released = await transaction.$executeRaw(Prisma.sql`
-        UPDATE "ProductVariant"
-        SET "stockReserved" = "stockReserved" - ${reservation.quantity},
-            "updatedAt" = ${now}
-        WHERE "id" = ${reservation.variantId}
-          AND "stockReserved" >= ${reservation.quantity}
-      `);
-      if (released !== 1) throw new Error("Inventario reservado inconsistente.");
-      await transaction.cartItem.updateMany({
-        where: {
-          cartId: reservation.cartId,
-          variantId: reservation.variantId,
-          quantity: { gte: reservation.quantity },
-        },
-        data: { quantity: { decrement: reservation.quantity } },
-      });
-      await transaction.cartItem.deleteMany({
-        where: { cartId: reservation.cartId, variantId: reservation.variantId, quantity: { lte: 0 } },
-      });
-      const variant = await transaction.productVariant.findUniqueOrThrow({
-        where: { id: reservation.variantId },
-        select: { stockOnHand: true },
-      });
-      await transaction.inventoryMovement.create({
-        data: {
-          variantId: reservation.variantId,
-          type: "RESERVATION_RELEASE",
-          quantity: reservation.quantity,
-          previousStock: variant.stockOnHand,
-          newStock: variant.stockOnHand,
-          reason: "Reserva expirada",
-        },
-      });
-      releasedCount += 1;
+  let releasedCount = 0;
+  for (let offset = 0; offset < expired.length; offset += 100) {
+    const batch = [];
+    for (const reservation of expired.slice(offset, offset + 100)) {
+      batch.push(d1Statement(
+        `UPDATE "InventoryReservation"
+         SET "status" = 'EXPIRED'
+         WHERE "id" = ? AND "status" = 'ACTIVE' AND "expiresAt" <= ?`,
+        reservation.id,
+        now.toISOString(),
+      ));
+      d1ExpectChanges(batch);
+      batch.push(d1Statement(
+        `UPDATE "ProductVariant"
+         SET "stockReserved" = "stockReserved" - ?, "updatedAt" = ?
+         WHERE "id" = ? AND "stockReserved" >= ?`,
+        reservation.quantity,
+        now.toISOString(),
+        reservation.variantId,
+        reservation.quantity,
+      ));
+      d1ExpectChanges(batch);
+      batch.push(d1Statement(
+        `UPDATE "CartItem"
+         SET "quantity" = "quantity" - ?, "updatedAt" = ?
+         WHERE "cartId" = ? AND "variantId" = ? AND "quantity" >= ?`,
+        reservation.quantity,
+        now.toISOString(),
+        reservation.cartId,
+        reservation.variantId,
+        reservation.quantity,
+      ));
+      d1ExpectChanges(batch);
+      batch.push(d1Statement(
+        `DELETE FROM "CartItem" WHERE "cartId" = ? AND "variantId" = ? AND "quantity" <= 0`,
+        reservation.cartId,
+        reservation.variantId,
+      ));
+      batch.push(d1Statement(
+        `INSERT INTO "InventoryMovement"
+          ("id", "variantId", "type", "quantity", "previousStock", "newStock", "reason", "createdAt")
+         SELECT ?, "id", 'RESERVATION_RELEASE', ?, "stockOnHand", "stockOnHand", 'Reserva expirada', ?
+         FROM "ProductVariant" WHERE "id" = ?`,
+        randomUUID(),
+        reservation.quantity,
+        now.toISOString(),
+        reservation.variantId,
+      ));
+      d1ExpectChanges(batch);
     }
-    return releasedCount;
-  });
+    await runD1Batch(batch);
+    releasedCount += Math.min(100, expired.length - offset);
+  }
+  return releasedCount;
 }

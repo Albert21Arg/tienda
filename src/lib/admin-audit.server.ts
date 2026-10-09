@@ -35,10 +35,10 @@ export async function getAdminAuditPage({
   const trimmedQuery = query.trim();
   const pattern = trimmedQuery ? `%${trimmedQuery}%` : null;
   const auditSearch = pattern
-    ? Prisma.sql`AND concat_ws(' ', al."action", al."entity", al."entityId", actor."name", actor."email", al."reason", al."previousValue"::text, al."newValue"::text) ILIKE ${pattern}`
+    ? Prisma.sql`AND LOWER(COALESCE(al."action", '') || ' ' || COALESCE(al."entity", '') || ' ' || COALESCE(al."entityId", '') || ' ' || COALESCE(actor."name", '') || ' ' || COALESCE(actor."email", '') || ' ' || COALESCE(al."reason", '') || ' ' || COALESCE(CAST(al."previousValue" AS TEXT), '') || ' ' || COALESCE(CAST(al."newValue" AS TEXT), '')) LIKE LOWER(${pattern})`
     : Prisma.empty;
   const movementSearch = pattern
-    ? Prisma.sql`AND concat_ws(' ', movement."type"::text, variant."sku", product."name", actor."name", actor."email", movement."reason") ILIKE ${pattern}`
+    ? Prisma.sql`AND LOWER(COALESCE(movement."type", '') || ' ' || COALESCE(variant."sku", '') || ' ' || COALESCE(product."name", '') || ' ' || COALESCE(actor."name", '') || ' ' || COALESCE(actor."email", '') || ' ' || COALESCE(movement."reason", '')) LIKE LOWER(${pattern})`
     : Prisma.empty;
   const auditBranch = Prisma.sql`
     SELECT
@@ -66,8 +66,8 @@ export async function getAdminAuditPage({
         WHEN al."entity" = 'Category' THEN audit_category."name"
         ELSE NULL
       END AS "reference",
-      al."previousValue"::text AS "previousValue",
-      al."newValue"::text AS "newValue",
+      CAST(al."previousValue" AS TEXT) AS "previousValue",
+      CAST(al."newValue" AS TEXT) AS "newValue",
       al."reason" AS "reason"
     FROM "AuditLog" al
     LEFT JOIN "User" actor ON actor."id" = al."actorId"
@@ -85,13 +85,13 @@ export async function getAdminAuditPage({
       movement."createdAt" AS "createdAt",
       COALESCE(actor."name", 'Sistema') AS "actorName",
       actor."email" AS "actorEmail",
-      movement."type"::text AS "action",
-      'Inventario'::text AS "entity",
+      movement."type" AS "action",
+      'Inventario' AS "entity",
       variant."sku" AS "entityId",
       product."name" AS "subjectName",
       variant."sku" AS "reference",
-      jsonb_build_object('stock', movement."previousStock")::text AS "previousValue",
-      jsonb_build_object(
+      json_object('stock', movement."previousStock") AS "previousValue",
+      json_object(
         'stock', movement."newStock",
         'quantity', movement."quantity",
         'product', product."name",

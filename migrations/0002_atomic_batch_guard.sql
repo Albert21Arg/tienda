@@ -1,0 +1,10 @@
+CREATE TABLE "_D1AtomicGuard" (
+  "id" INTEGER PRIMARY KEY CHECK ("id" = 1)
+);
+
+CREATE TRIGGER "_D1AtomicGuard_check"
+BEFORE INSERT ON "_D1AtomicGuard"
+WHEN NEW."id" != 1
+BEGIN
+  SELECT RAISE(ABORT, 'D1_ATOMIC_ASSERT');
+END;

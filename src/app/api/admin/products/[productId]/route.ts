@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { parseProductImages } from "@/lib/product-images";
 
 const updateProductSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -43,6 +44,7 @@ export async function PATCH(
       const existing = await transaction.product.findUnique({ where: { id: productId } });
       if (!existing) return null;
 
+      const existingImages = parseProductImages(existing.images);
       const updated = await transaction.product.update({
         where: { id: productId },
         data: {
@@ -53,7 +55,7 @@ export async function PATCH(
           categoryId: input.data.categoryId,
           basePrice: input.data.basePrice,
           previousPrice: input.data.basePrice === existing.basePrice ? existing.previousPrice : null,
-          images: [input.data.imageUrl, ...existing.images.slice(1)],
+          images: JSON.stringify([input.data.imageUrl, ...existingImages.slice(1)]),
           isActive: input.data.isActive,
         },
       });
@@ -70,7 +72,7 @@ export async function PATCH(
             segment: existing.segment,
             categoryId: existing.categoryId,
             basePrice: existing.basePrice,
-            images: existing.images,
+            images: existingImages,
             isActive: existing.isActive,
           } satisfies Prisma.InputJsonObject,
           newValue: {
@@ -80,7 +82,7 @@ export async function PATCH(
             segment: updated.segment,
             categoryId: updated.categoryId,
             basePrice: updated.basePrice,
-            images: updated.images,
+            images: [input.data.imageUrl, ...existingImages.slice(1)],
             isActive: updated.isActive,
           } satisfies Prisma.InputJsonObject,
           reason: input.data.reason,
@@ -89,7 +91,9 @@ export async function PATCH(
       return updated;
     });
     if (!result) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
-    return NextResponse.json({ product: result });
+    return NextResponse.json({
+      product: { ...result, images: parseProductImages(result.images) },
+    });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "Ese slug ya está en uso." }, { status: 409 });

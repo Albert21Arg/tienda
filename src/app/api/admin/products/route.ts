@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { generateProductSku } from "@/lib/product-sku";
+import { parseProductImages } from "@/lib/product-images";
 
 const createVariantSchema = z.object({
   size: z.string().trim().min(1).max(30).nullable().optional(),
@@ -43,7 +44,9 @@ export async function GET() {
     include: { category: true, variants: true },
     orderBy: { updatedAt: "desc" },
   });
-  return NextResponse.json({ products });
+  return NextResponse.json({
+    products: products.map((product) => ({ ...product, images: parseProductImages(product.images) })),
+  });
 }
 
 export async function POST(request: Request) {
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
           categoryId: input.data.categoryId,
           basePrice: input.data.basePrice,
           previousPrice: input.data.previousPrice,
-          images: input.data.images,
+          images: JSON.stringify(input.data.images),
           variants: { create: variants },
         },
       });
@@ -118,7 +121,9 @@ export async function POST(request: Request) {
       });
       return created;
     });
-    return NextResponse.json({ product }, { status: 201 });
+    return NextResponse.json({
+      product: { ...product, images: parseProductImages(product.images) },
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "El slug ya existe. Ajusta el slug e inténtalo de nuevo." }, { status: 409 });

@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 enum Segment {
@@ -149,13 +149,13 @@ model Product {
   id            String             @id @default(cuid())
   name          String
   slug          String             @unique
-  description   String             @db.Text
+  description   String
   segment       Segment
   categoryId    String
   category      Category           @relation(fields: [categoryId], references: [id])
   basePrice     Int
   previousPrice Int?
-  images        String[]
+  images        String   @default("[]")
   isActive      Boolean            @default(true)
   isFeatured    Boolean            @default(false)
   variants      ProductVariant[]
@@ -289,7 +289,7 @@ model Coupon {
 model Advertisement {
   id          String   @id @default(cuid())
   title       String
-  description String?  @db.Text
+  description String?
   imageUrl    String
   href        String?
   segment     Segment?

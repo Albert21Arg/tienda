@@ -24,14 +24,14 @@ export async function getAdminInventoryPage({
   segment: InventorySegmentFilter;
   status: InventoryStatusFilter;
 }): Promise<InventoryPage> {
-  const conditions: Prisma.Sql[] = [Prisma.sql`pv."isActive" = TRUE`];
+  const conditions: Prisma.Sql[] = [Prisma.sql`pv."isActive" = 1`];
   const trimmedQuery = query.trim();
   if (trimmedQuery) {
     const search = `%${trimmedQuery}%`;
-    conditions.push(Prisma.sql`(p."name" ILIKE ${search} OR pv."sku" ILIKE ${search})`);
+    conditions.push(Prisma.sql`(LOWER(p."name") LIKE LOWER(${search}) OR LOWER(pv."sku") LIKE LOWER(${search}))`);
   }
   if (segment !== "ALL") {
-    conditions.push(Prisma.sql`p."segment" = CAST(${segment} AS "Segment")`);
+    conditions.push(Prisma.sql`p."segment" = ${segment}`);
   }
   if (status === "OUT") {
     conditions.push(Prisma.sql`pv."stockOnHand" <= pv."stockReserved"`);

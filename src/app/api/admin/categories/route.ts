@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
   const { name, segment } = input.data;
   const duplicate = await prisma.category.findFirst({
-    where: { name: { equals: name, mode: "insensitive" }, segment, parentId: null },
+    where: { name: { equals: name }, segment, parentId: null },
     select: { id: true },
   });
   if (duplicate) {

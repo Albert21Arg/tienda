@@ -5,6 +5,7 @@ import {
   type Product,
   type Segment,
 } from "@/lib/catalog";
+import { parseProductImages } from "@/lib/product-images";
 
 function mapProduct(record: {
   id: string;
@@ -14,7 +15,7 @@ function mapProduct(record: {
   segment: DbSegment;
   basePrice: number;
   previousPrice: number | null;
-  images: string[];
+  images: string;
   category: { name: string };
   variants: {
     id: string;
@@ -25,6 +26,7 @@ function mapProduct(record: {
     stockReserved: number;
   }[];
 }): Product {
+  const images = parseProductImages(record.images);
   const variant =
     record.variants.find((item) => item.stockOnHand - item.stockReserved > 0) ??
     record.variants[0];
@@ -42,8 +44,8 @@ function mapProduct(record: {
       ? `-${Math.round((previousPrice - price) / previousPrice * 100)}% descuento`
       : undefined,
     color: variant?.color ?? "Selección",
-    image: record.images[0] ?? "",
-    images: record.images,
+    image: images[0] ?? "",
+    images,
     description: record.description,
     sizes: record.variants.flatMap((item) => item.size ? [item.size] : []),
     variantId: variant?.id,
