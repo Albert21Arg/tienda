@@ -1,0 +1,1 @@
+export const FREE_SHIPPING_THRESHOLD = 250_000;
