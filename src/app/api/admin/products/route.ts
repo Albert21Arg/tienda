@@ -83,14 +83,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Datos de producto inválidos.", details: input.error.flatten() }, { status: 400 });
   }
 
-  const category = await prisma.category.findFirst({
-    where: {
-      id: input.data.categoryId,
-      isActive: true,
-      OR: [{ segment: input.data.segment }, { segment: null }],
-    },
-    select: { id: true },
-  });
+  let category: { id: string } | null;
+  try {
+    category = await prisma.category.findFirst({
+      where: {
+        id: input.data.categoryId,
+        isActive: true,
+        OR: [{ segment: input.data.segment }, { segment: null }],
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error("[admin/products] Failed to validate product category.", error);
+    return NextResponse.json({ error: "No se pudo validar la categoría en la base de datos." }, { status: 500 });
+  }
   if (!category) {
     return NextResponse.json({ error: "Selecciona una categoría activa del segmento del producto." }, { status: 400 });
   }
@@ -174,6 +180,9 @@ export async function POST(request: Request) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
       return NextResponse.json({ error: "La categoría indicada no existe." }, { status: 400 });
     }
-    throw error;
+    console.error("[admin/products] Failed to create product.", error);
+    return NextResponse.json({
+      error: "El servidor no pudo guardar el producto. Revisa la conexión con la base de datos e inténtalo nuevamente.",
+    }, { status: 500 });
   }
 }

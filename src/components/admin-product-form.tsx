@@ -204,7 +204,18 @@ export function AdminProductForm({
           ),
         }),
       });
-      const result = (await response.json()) as { error?: string };
+      const responseText = await response.text();
+      let result: { error?: string };
+      try {
+        result = JSON.parse(responseText) as { error?: string };
+      } catch {
+        setError(
+          response.ok
+            ? "El servidor devolvió una respuesta inválida. Intenta nuevamente."
+            : `El servidor respondió con un error (${response.status}). Intenta nuevamente.`,
+        );
+        return;
+      }
       if (!response.ok) {
         setError(result.error ?? "No fue posible crear el producto.");
         return;
