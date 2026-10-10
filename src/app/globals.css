@@ -552,10 +552,10 @@ button { color: inherit; }
 .payment-qr-preview img { object-fit: contain; padding: 12px; }
 .payment-qr-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .payment-qr-fields > p { width: 100%; margin: 0 0 3px; color: var(--muted); font-size: 13px; line-height: 1.6; }
-.payment-qr-upload { cursor: pointer; }
 .payment-qr-remove { color: #8a4e47; cursor: pointer; }
 .payment-qr-instructions { display: grid; width: 100%; gap: 6px; color: #484741; font-size: 13px; }
-.payment-qr-instructions textarea { width: 100%; min-height: 86px; padding: 10px; border: 1px solid #dedbd4; background: white; font: inherit; resize: vertical; }
+.payment-qr-instructions input, .payment-qr-instructions textarea { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #dedbd4; background: white; font: inherit; }
+.payment-qr-instructions textarea { min-height: 86px; resize: vertical; }
 .payment-qr-help { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .editorial-banners-editor { display: grid; gap: 16px; margin-top: 18px; }
 .editorial-banner-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
