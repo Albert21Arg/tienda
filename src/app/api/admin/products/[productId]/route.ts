@@ -40,12 +40,23 @@ export async function PATCH(
   }
 
   try {
-    const result = await prisma.$transaction(async (transaction) => {
-      const existing = await transaction.product.findUnique({ where: { id: productId } });
-      if (!existing) return null;
+    const existing = await prisma.product.findUnique({ where: { id: productId } });
+    if (!existing) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
 
-      const existingImages = parseProductImages(existing.images);
-      const updated = await transaction.product.update({
+    const existingImages = parseProductImages(existing.images);
+    const updatedImages = [input.data.imageUrl, ...existingImages.slice(1)];
+    const newValue = {
+      name: input.data.name,
+      slug: input.data.slug,
+      description: input.data.description,
+      segment: input.data.segment,
+      categoryId: input.data.categoryId,
+      basePrice: input.data.basePrice,
+      images: updatedImages,
+      isActive: input.data.isActive,
+    } satisfies Prisma.InputJsonObject;
+    const [updated] = await prisma.$transaction([
+      prisma.product.update({
         where: { id: productId },
         data: {
           name: input.data.name,
@@ -55,11 +66,11 @@ export async function PATCH(
           categoryId: input.data.categoryId,
           basePrice: input.data.basePrice,
           previousPrice: input.data.basePrice === existing.basePrice ? existing.previousPrice : null,
-          images: JSON.stringify([input.data.imageUrl, ...existingImages.slice(1)]),
+          images: JSON.stringify(updatedImages),
           isActive: input.data.isActive,
         },
-      });
-      await transaction.auditLog.create({
+      }),
+      prisma.auditLog.create({
         data: {
           actorId: access.session.userId,
           action: "PRODUCT_UPDATE",
@@ -75,24 +86,13 @@ export async function PATCH(
             images: existingImages,
             isActive: existing.isActive,
           } satisfies Prisma.InputJsonObject,
-          newValue: {
-            name: updated.name,
-            slug: updated.slug,
-            description: updated.description,
-            segment: updated.segment,
-            categoryId: updated.categoryId,
-            basePrice: updated.basePrice,
-            images: [input.data.imageUrl, ...existingImages.slice(1)],
-            isActive: updated.isActive,
-          } satisfies Prisma.InputJsonObject,
+          newValue,
           reason: input.data.reason,
         },
-      });
-      return updated;
-    });
-    if (!result) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
+      }),
+    ]);
     return NextResponse.json({
-      product: { ...result, images: parseProductImages(result.images) },
+      product: { ...updated, images: parseProductImages(updated.images) },
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

@@ -23,26 +23,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Selecciona productos y escribe un motivo válido." }, { status: 400 });
   }
 
-  const result = await prisma.$transaction(async (transaction) => {
-    const selected = await transaction.product.findMany({
-      where: { id: { in: input.data.productIds } },
-      select: { id: true, name: true, isActive: true },
-    });
-    if (selected.length !== input.data.productIds.length) {
-      return { error: "Uno o más productos ya no existen.", status: 404 as const };
-    }
-    const active = selected.filter((product) => product.isActive);
-    if (!active.length) return { error: "Los productos seleccionados ya están inactivos.", status: 409 as const };
+  const selected = await prisma.product.findMany({
+    where: { id: { in: input.data.productIds } },
+    select: { id: true, name: true, isActive: true },
+  });
+  if (selected.length !== input.data.productIds.length) {
+    return NextResponse.json({ error: "Uno o más productos ya no existen." }, { status: 404 });
+  }
+  const active = selected.filter((product) => product.isActive);
+  if (!active.length) {
+    return NextResponse.json({ error: "Los productos seleccionados ya están inactivos." }, { status: 409 });
+  }
 
-    let updatedCount = 0;
-    for (const product of active) {
-      const updated = await transaction.product.updateMany({
-        where: { id: product.id, isActive: true },
-        data: { isActive: false },
-      });
-      if (updated.count !== 1) continue;
-      updatedCount += 1;
-      await transaction.auditLog.create({
+  await prisma.$transaction(active.flatMap((product) => [
+    prisma.product.updateMany({
+      where: { id: product.id, isActive: true },
+      data: { isActive: false },
+    }),
+    prisma.auditLog.create({
         data: {
           actorId: access.session.userId,
           action: "PRODUCT_DEACTIVATE",
@@ -58,13 +56,7 @@ export async function POST(request: Request) {
           } satisfies Prisma.InputJsonObject,
           reason: input.data.reason,
         },
-      });
-    }
-    return { updatedCount };
-  });
-
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
-  }
-  return NextResponse.json({ updatedCount: result.updatedCount });
+    }),
+  ]));
+  return NextResponse.json({ updatedCount: active.length });
 }

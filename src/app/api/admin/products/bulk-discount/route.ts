@@ -28,37 +28,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Datos de descuento inválidos." }, { status: 400 });
   }
 
-  const result = await prisma.$transaction(async (transaction) => {
-    const products = await transaction.product.findMany({
-      where: { id: { in: input.data.productIds } },
-      select: { id: true, name: true, basePrice: true, previousPrice: true },
-    });
-    if (products.length !== input.data.productIds.length) {
-      return { error: "Uno o más productos ya no están disponibles.", status: 404 as const };
-    }
+  const products = await prisma.product.findMany({
+    where: { id: { in: input.data.productIds } },
+    select: { id: true, name: true, basePrice: true, previousPrice: true },
+  });
+  if (products.length !== input.data.productIds.length) {
+    return NextResponse.json({ error: "Uno o más productos ya no están disponibles." }, { status: 404 });
+  }
 
-    const changes = products.map((product) => {
-      const referencePrice = product.previousPrice ?? product.basePrice;
-      const reduction = input.data.type === "PERCENTAGE"
-        ? Math.round(referencePrice * input.data.value / 100)
-        : input.data.value;
-      return { product, referencePrice, discountedPrice: referencePrice - reduction };
-    });
-    if (changes.some(({ referencePrice, discountedPrice }) => discountedPrice < 1 || discountedPrice >= referencePrice)) {
-      return {
-        error: input.data.type === "PERCENTAGE"
-          ? "El porcentaje elegido no genera un descuento válido para todos los productos."
-          : "El descuento debe ser menor que el precio original de todos los productos.",
-        status: 400 as const,
-      };
-    }
+  const changes = products.map((product) => {
+    const referencePrice = product.previousPrice ?? product.basePrice;
+    const reduction = input.data.type === "PERCENTAGE"
+      ? Math.round(referencePrice * input.data.value / 100)
+      : input.data.value;
+    return { product, referencePrice, discountedPrice: referencePrice - reduction };
+  });
+  if (changes.some(({ referencePrice, discountedPrice }) => discountedPrice < 1 || discountedPrice >= referencePrice)) {
+    return NextResponse.json({
+      error: input.data.type === "PERCENTAGE"
+        ? "El porcentaje elegido no genera un descuento válido para todos los productos."
+        : "El descuento debe ser menor que el precio original de todos los productos.",
+    }, { status: 400 });
+  }
 
-    for (const { product, referencePrice, discountedPrice } of changes) {
-      await transaction.product.update({
+  await prisma.$transaction(changes.flatMap(({ product, referencePrice, discountedPrice }) => [
+    prisma.product.update({
         where: { id: product.id },
         data: { basePrice: discountedPrice, previousPrice: referencePrice },
-      });
-      await transaction.auditLog.create({
+    }),
+    prisma.auditLog.create({
         data: {
           actorId: access.session.userId,
           action: "PRODUCT_DISCOUNT",
@@ -76,13 +74,7 @@ export async function POST(request: Request) {
           } satisfies Prisma.InputJsonObject,
           reason: input.data.reason,
         },
-      });
-    }
-    return { updatedCount: changes.length };
-  });
-
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
-  }
-  return NextResponse.json(result);
+    }),
+  ]));
+  return NextResponse.json({ updatedCount: changes.length });
 }

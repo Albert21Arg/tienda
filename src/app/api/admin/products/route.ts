@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Permission, Prisma, Segment } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -71,33 +72,30 @@ export async function POST(request: Request) {
   }
 
   try {
-    const product = await prisma.$transaction(async (transaction) => {
-      const skuBases = input.data.variants.map((variant) =>
-        generateProductSku(input.data.segment, input.data.slug, variant.size),
-      );
-      const existingSkus = await transaction.productVariant.findMany({
-        where: { sku: { in: skuBases } },
-        select: { sku: true },
-      });
-      const reservedSkus = new Set(existingSkus.map(({ sku }) => sku));
-      const variants = [];
-      for (const variant of input.data.variants) {
-        const skuBase = generateProductSku(input.data.segment, input.data.slug, variant.size);
-        let sku = skuBase;
-        let suffix = 2;
-        while (reservedSkus.has(sku) || await transaction.productVariant.findUnique({
-          where: { sku },
-          select: { id: true },
-        })) {
-          sku = `${skuBase}-${suffix}`;
-          suffix += 1;
-        }
-        reservedSkus.add(sku);
-        variants.push({ ...variant, sku, color: input.data.color || undefined });
+    const skuBases = input.data.variants.map((variant) =>
+      generateProductSku(input.data.segment, input.data.slug, variant.size),
+    );
+    const existingVariants = await prisma.productVariant.findMany({
+      where: { OR: skuBases.map((sku) => ({ sku: { startsWith: sku } })) },
+      select: { sku: true },
+    });
+    const reservedSkus = new Set(existingVariants.map(({ sku }) => sku));
+    const variants = input.data.variants.map((variant, index) => {
+      const skuBase = skuBases[index];
+      let sku = skuBase;
+      let suffix = 2;
+      while (reservedSkus.has(sku)) {
+        sku = `${skuBase}-${suffix}`;
+        suffix += 1;
       }
-
-      const created = await transaction.product.create({
+      reservedSkus.add(sku);
+      return { ...variant, sku, color: input.data.color || undefined };
+    });
+    const productId = randomUUID();
+    const [product] = await prisma.$transaction([
+      prisma.product.create({
         data: {
+          id: productId,
           name: input.data.name,
           slug: input.data.slug,
           description: input.data.description,
@@ -108,19 +106,18 @@ export async function POST(request: Request) {
           images: JSON.stringify(input.data.images),
           variants: { create: variants },
         },
-      });
-      await transaction.auditLog.create({
+      }),
+      prisma.auditLog.create({
         data: {
           actorId: access.session.userId,
           action: "PRODUCT_CREATE",
           entity: "Product",
-          entityId: created.id,
-          newValue: { name: created.name, slug: created.slug } satisfies Prisma.InputJsonObject,
+          entityId: productId,
+          newValue: { name: input.data.name, slug: input.data.slug } satisfies Prisma.InputJsonObject,
           reason: input.data.reason,
         },
-      });
-      return created;
-    });
+      }),
+    ]);
     return NextResponse.json({
       product: { ...product, images: parseProductImages(product.images) },
     }, { status: 201 });
