@@ -19,13 +19,13 @@ export async function PUT(request: Request) {
 
   const previousFee = await getShippingFee();
   const setting = { fee: input.data.fee };
-  await prisma.$transaction(async (transaction) => {
-    await transaction.platformSetting.upsert({
+  await prisma.$transaction([
+    prisma.platformSetting.upsert({
       where: { key: SHIPPING_SETTINGS_KEY },
       update: { value: setting satisfies Prisma.InputJsonObject },
       create: { key: SHIPPING_SETTINGS_KEY, value: setting satisfies Prisma.InputJsonObject },
-    });
-    await transaction.auditLog.create({
+    }),
+    prisma.auditLog.create({
       data: {
         actorId: access.session.userId,
         action: "SHIPPING_FEE_UPDATE",
@@ -35,7 +35,7 @@ export async function PUT(request: Request) {
         newValue: setting satisfies Prisma.InputJsonObject,
         reason: "Actualización de la tarifa de envío desde Configuración.",
       },
-    });
-  });
+    }),
+  ]);
   return NextResponse.json({ fee: input.data.fee });
 }

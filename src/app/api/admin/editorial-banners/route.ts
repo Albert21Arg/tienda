@@ -37,13 +37,13 @@ export async function PUT(request: Request) {
   }
   const previous = await getEditorialBanners();
   const banners: EditorialBanners = input.data;
-  await prisma.$transaction(async (transaction) => {
-    await transaction.platformSetting.upsert({
+  await prisma.$transaction([
+    prisma.platformSetting.upsert({
       where: { key: EDITORIAL_BANNERS_SETTING_KEY },
       update: { value: banners satisfies Prisma.InputJsonObject },
       create: { key: EDITORIAL_BANNERS_SETTING_KEY, value: banners satisfies Prisma.InputJsonObject },
-    });
-    await transaction.auditLog.create({
+    }),
+    prisma.auditLog.create({
       data: {
         actorId: access.session.userId,
         action: "EDITORIAL_BANNERS_UPDATE",
@@ -53,7 +53,7 @@ export async function PUT(request: Request) {
         newValue: banners satisfies Prisma.InputJsonObject,
         reason: "Actualización de banners editoriales para Mujer y Hombre desde administración.",
       },
-    });
-  });
+    }),
+  ]);
   return NextResponse.json({ banners });
 }

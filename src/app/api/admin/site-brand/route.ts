@@ -94,13 +94,13 @@ export async function PUT(request: Request) {
     logoUrl,
   };
   try {
-    await prisma.$transaction(async (transaction) => {
-      await transaction.platformSetting.upsert({
+    await prisma.$transaction([
+      prisma.platformSetting.upsert({
         where: { key: BRAND_SETTING_KEY },
         update: { value: brand satisfies Prisma.InputJsonObject },
         create: { key: BRAND_SETTING_KEY, value: brand satisfies Prisma.InputJsonObject },
-      });
-      await transaction.auditLog.create({
+      }),
+      prisma.auditLog.create({
         data: {
           actorId: access.session.userId,
           action: "SITE_BRAND_UPDATE",
@@ -110,8 +110,8 @@ export async function PUT(request: Request) {
           newValue: brand satisfies Prisma.InputJsonObject,
           reason: "Actualización de identidad del sitio desde configuración SuperAdmin.",
         },
-      });
-    });
+      }),
+    ]);
   } catch (error) {
     if (savedFile) await unlink(savedFile);
     throw error;
