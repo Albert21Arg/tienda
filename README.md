@@ -65,7 +65,7 @@ Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `previe
 - Máquina de estados de pedidos con transiciones validadas y registro de auditoría.
 - Configuración SuperAdmin para cambiar el nombre, el texto bajo la marca, el aviso superior, los datos de contacto y la información de envíos/cambios; también permite subir/quitar el logo PNG.
 - Creación de categorías para Mujer u Hombre desde configuración SuperAdmin; se publican como filtros en la tienda correspondiente y se registran en auditoría.
-- Configuración de imágenes de portada disponible para Admin y SuperAdmin; permite reemplazar/restaurar las colecciones de Mujer y Hombre y audita los cambios.
+- Configuración de imágenes de portada disponible para Admin y SuperAdmin; permite guardar URLs HTTP/HTTPS o restaurar las imágenes predeterminadas de Mujer y Hombre, y audita los cambios.
 
 ## APIs iniciales
 
@@ -83,7 +83,7 @@ Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `previe
 | `PUT` | `/api/admin/site-brand` | Cambiar nombre, subtítulo, aviso, contacto, envíos/cambios o logo (permiso SuperAdmin) |
 | `POST` | `/api/admin/categories` | Crear categoría para Mujer u Hombre (permiso SuperAdmin) |
 | `GET` | `/api/admin/home-images` | Consultar imágenes de portada |
-| `PUT` | `/api/admin/home-images` | Cambiar imágenes PNG/JPG de Mujer y Hombre (permiso `HOME_CONTENT_MANAGE`, asignado a Admin/SuperAdmin) |
+| `PUT` | `/api/admin/home-images` | Guardar las URLs HTTP/HTTPS de las imágenes de Mujer y Hombre (permiso `HOME_CONTENT_MANAGE`, asignado a Admin/SuperAdmin) |
 
 ## Próximas integraciones antes de producción
 
@@ -92,7 +92,7 @@ Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `previe
 - **Proceso de expiración:** `vercel.json` programa la ruta de cron cada cinco minutos. En otro hosting, configura un scheduler que envíe `Authorization: Bearer $CRON_SECRET`. La ruta procesa hasta 500 reservas por ejecución.
 - **Protecciones operativas:** configura rate limiting distribuido para login y endpoints públicos, TLS, copias de seguridad, alertas y monitorización en el proveedor de despliegue.
 - **Archivos del logo:** los PNG subidos se guardan en `public/uploads/site-brand`. En producción usa un volumen persistente o cambia el almacenamiento a un bucket/object storage antes de desplegar en infraestructura efímera.
-- **Imágenes de portada:** los PNG/JPG subidos se guardan en `public/uploads/home` (máximo 5 MB por imagen). Usa almacenamiento persistente o un bucket/object storage en producción.
+- **Imágenes de portada:** se almacenan como URLs públicas HTTP/HTTPS en D1; las imágenes deben estar alojadas en un servicio accesible públicamente.
 - **Negocio:** completar configuración de envíos, cupones/promociones, anuncios, favoritos persistidos y notificaciones.
 - **Datos iniciales:** aplica primero las migraciones D1 y configura de forma segura el SuperAdmin, el catálogo, los permisos y los ajustes comerciales antes de aceptar pedidos.
 - **Pruebas de integración:** probar concurrencia, expiración, permisos y flujos de pedido/pago en una D1 de staging antes de operar con clientes.

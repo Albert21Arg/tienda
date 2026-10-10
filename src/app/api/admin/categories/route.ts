@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Permission, Prisma, Segment } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -41,27 +42,27 @@ export async function POST(request: Request) {
 
   const slug = `${segment === Segment.MEN ? "hombre" : "mujer"}-${slugify(name)}`;
   try {
-    const category = await prisma.$transaction(async (transaction) => {
-      const sortOrder = await transaction.category.count({ where: { segment, parentId: null } });
-      const created = await transaction.category.create({
-        data: { name, slug, segment, sortOrder },
-      });
-      await transaction.auditLog.create({
+    const id = randomUUID();
+    const sortOrder = await prisma.category.count({ where: { segment, parentId: null } });
+    const [category] = await prisma.$transaction([
+      prisma.category.create({
+        data: { id, name, slug, segment, sortOrder },
+      }),
+      prisma.auditLog.create({
         data: {
           actorId: access.session.userId,
           action: "CATEGORY_CREATE",
           entity: "Category",
-          entityId: created.id,
+          entityId: id,
           newValue: {
-            name: created.name,
-            slug: created.slug,
-            segment: created.segment,
+            name,
+            slug,
+            segment,
           } satisfies Prisma.InputJsonObject,
           reason: "Creación de categoría por SuperAdmin.",
         },
-      });
-      return created;
-    });
+      }),
+    ]);
     return NextResponse.json({ category }, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

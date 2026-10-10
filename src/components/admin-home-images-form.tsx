@@ -1,84 +1,57 @@
 "use client";
 
 import Image from "next/image";
-import { ImagePlus, RotateCcw, Save } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import type { HomeImages } from "@/lib/home-images.types";
+import { RotateCcw, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { DEFAULT_HOME_IMAGES, type HomeImages } from "@/lib/home-images.types";
 
 type ImageField = "women" | "men";
-type ImageState = {
-  file: File | null;
-  preview: string;
-  reset: boolean;
-};
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const labels: Record<ImageField, string> = {
   women: "Colección Mujer",
   men: "Colección Hombre",
 };
+
+function getPreviewUrl(value: string, fallback: string) {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:" ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export function AdminHomeImagesForm({
   initialImages,
 }: {
   initialImages: HomeImages;
 }) {
-  const [images, setImages] = useState<Record<ImageField, ImageState>>({
-    women: { file: null, preview: initialImages.women, reset: false },
-    men: { file: null, preview: initialImages.men, reset: false },
-  });
-  const previewUrls = useRef<string[]>([]);
+  const router = useRouter();
+  const [images, setImages] = useState(initialImages);
+  const [savedImages, setSavedImages] = useState(initialImages);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(
-    () => () => previewUrls.current.forEach((url) => URL.revokeObjectURL(url)),
-    [],
-  );
-
-  function selectFile(field: ImageField, file: File | undefined) {
+  function changeImage(field: ImageField, value: string) {
+    setImages((current) => ({ ...current, [field]: value }));
     setError("");
     setSuccess("");
-    if (!file) return;
-    const allowedTypes = ["image/png", "image/jpeg"];
-    if (!allowedTypes.includes(file.type)) {
-      setError("Usa una imagen PNG o JPG/JPEG.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Cada imagen debe pesar como máximo 5 MB.");
-      return;
-    }
-    const preview = URL.createObjectURL(file);
-    previewUrls.current.push(preview);
-    setImages((current) => ({
-      ...current,
-      [field]: { file, preview, reset: false },
-    }));
   }
 
   function resetImage(field: ImageField) {
-    setImages((current) => ({
-      ...current,
-      [field]: { file: null, preview: "", reset: true },
-    }));
+    changeImage(field, DEFAULT_HOME_IMAGES[field]);
   }
 
   async function saveImages() {
     setBusy(true);
     setError("");
     setSuccess("");
-    const formData = new FormData();
-    formData.set("resetWomen", String(images.women.reset));
-    formData.set("resetMen", String(images.men.reset));
-    if (images.women.file) formData.set("womenImage", images.women.file);
-    if (images.men.file) formData.set("menImage", images.men.file);
-
     try {
       const response = await fetch("/api/admin/home-images", {
         method: "PUT",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(images),
       });
       const result = (await response.json()) as {
         error?: string;
@@ -88,14 +61,10 @@ export function AdminHomeImagesForm({
         setError(result.error ?? "No se pudieron guardar las imágenes.");
         return;
       }
-      setImages({
-        women: { file: null, preview: result.images.women, reset: false },
-        men: { file: null, preview: result.images.men, reset: false },
-      });
-      previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
-      previewUrls.current = [];
+      setImages(result.images);
+      setSavedImages(result.images);
       setSuccess("Las imágenes de la portada se actualizaron.");
-      window.location.reload();
+      router.refresh();
     } catch {
       setError("No se pudo conectar con el servidor. Intenta nuevamente.");
     } finally {
@@ -103,56 +72,54 @@ export function AdminHomeImagesForm({
     }
   }
 
+  const hasChanges = images.women !== savedImages.women || images.men !== savedImages.men;
+
   return (
     <div className="home-images-editor">
       <div className="home-image-grid">
         {(["women", "men"] as const).map((field) => (
           <section className="home-image-card" key={field}>
             <div className="home-image-preview">
-              {images[field].preview ? (
-                <Image
-                  src={images[field].preview}
-                  alt={`Vista previa: ${labels[field]}`}
-                  fill
-                  sizes="(max-width: 700px) 100vw, 45vw"
-                  unoptimized
-                />
-              ) : (
-                <span>Se usará la imagen predeterminada</span>
-              )}
+              <Image
+                src={getPreviewUrl(images[field], savedImages[field])}
+                alt={`Vista previa: ${labels[field]}`}
+                fill
+                sizes="(max-width: 700px) 100vw, 45vw"
+                unoptimized
+              />
             </div>
             <h3>{labels[field]}</h3>
             <p>Imagen del selector principal que lleva a esta colección.</p>
             <div className="home-image-actions">
-              <label className="button button-outline" htmlFor={`home-image-${field}`}>
-                <ImagePlus size={16} /> Cambiar imagen
-              </label>
-              <input
-                className="sr-only"
-                id={`home-image-${field}`}
-                type="file"
-                accept="image/png,image/jpeg,.png,.jpg,.jpeg"
-                onChange={(event) => selectFile(field, event.target.files?.[0])}
-              />
+              <label htmlFor={`home-image-${field}`}>URL de imagen</label>
               <button
                 className="button button-outline"
                 type="button"
                 onClick={() => resetImage(field)}
               >
-                <RotateCcw size={15} /> Restaurar
+                <RotateCcw size={15} /> Usar predeterminada
               </button>
             </div>
+            <input
+              id={`home-image-${field}`}
+              type="url"
+              value={images[field]}
+              maxLength={2048}
+              required
+              onChange={(event) => changeImage(field, event.target.value)}
+              placeholder="https://ejemplo.com/imagen.jpg"
+            />
           </section>
         ))}
       </div>
-      <p className="brand-help">Formatos PNG y JPG/JPEG, máximo 5 MB por imagen. Puedes reemplazar una o ambas.</p>
+      <p className="brand-help">Pega una URL pública HTTP o HTTPS de la imagen. No se suben ni guardan archivos.</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       {success && <p className="brand-success" role="status">{success}</p>}
       <button
         className="button button-dark"
         type="button"
         onClick={() => void saveImages()}
-        disabled={busy || Boolean(error) || (!images.women.file && !images.men.file && !images.women.reset && !images.men.reset)}
+        disabled={busy || Boolean(error) || !hasChanges}
       >
         <Save size={15} /> {busy ? "Guardando..." : "Guardar imágenes"}
       </button>
