@@ -53,6 +53,10 @@ const EMPTY_CART: CartLine[] = [];
 let cachedCart: CartLine[] | null = null;
 const cartListeners = new Set<() => void>();
 
+function cartLineKey(product: Product) {
+  return product.variantId ? `${product.id}:${product.variantId}` : product.id;
+}
+
 function getCartSnapshot() {
   if (cachedCart) return cachedCart;
   if (typeof window === "undefined") return EMPTY_CART;
@@ -185,10 +189,12 @@ export function StoreProvider({
       }
     }
     updateCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
+      const existing = current.find(
+        (line) => line.product.id === product.id && line.product.variantId === product.variantId,
+      );
       if (existing) {
         return current.map((line) =>
-          line.product.id === product.id
+          line.product.id === product.id && line.product.variantId === product.variantId
             ? {
                 ...line,
                 quantity: line.quantity + 1,
@@ -247,8 +253,9 @@ export function StoreProvider({
     }
   };
 
-  const removeOne = async (id: string) => {
-    const line = lines.find((item) => item.product.id === id);
+  const removeOne = async (product: Product) => {
+    const key = cartLineKey(product);
+    const line = lines.find((item) => cartLineKey(item.product) === key);
     if (!line) return;
     const reservationIds = line.reservationIds ?? [];
     const lastReservationId = reservationIds.at(-1);
@@ -256,7 +263,7 @@ export function StoreProvider({
     updateCart((current) =>
       current
         .map((item) =>
-          item.product.id === id
+          cartLineKey(item.product) === key
             ? {
                 ...item,
                 quantity: item.quantity - 1,
@@ -269,11 +276,12 @@ export function StoreProvider({
     );
   };
 
-  const remove = async (id: string) => {
-    const line = lines.find((item) => item.product.id === id);
+  const remove = async (product: Product) => {
+    const key = cartLineKey(product);
+    const line = lines.find((item) => cartLineKey(item.product) === key);
     if (!line) return;
     if (!(await cancelReservations(line.reservationIds ?? []))) return;
-    updateCart((current) => current.filter((item) => item.product.id !== id));
+    updateCart((current) => current.filter((item) => cartLineKey(item.product) !== key));
   };
 
   const submitQrCheckout = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -417,25 +425,31 @@ export function StoreProvider({
             ) : (
               <>
                 <div className="cart-lines">
-                  {lines.map(({ product, quantity }) => (
-                    <article className="cart-line" key={product.id}>
+                  {lines.map((line) => {
+                    const { product, quantity } = line;
+                    const selectedVariant = product.variants?.find((variant) => variant.id === product.variantId);
+                    const expiry = line.expiryTimes?.[0];
+                    const seconds = expiry
+                      ? Math.max(0, Math.floor((new Date(expiry).getTime() - now) / 1000))
+                      : 0;
+                    return (
+                    <article className="cart-line" key={cartLineKey(product)}>
                       <Image src={product.image} alt="" width={86} height={108} unoptimized />
                       <div className="cart-line-info">
                         <span>{product.category.split(" · ")[0]}</span>
                         <h3>{product.name}</h3>
+                        {product.color && <small>Color: {product.color}</small>}
+                        {selectedVariant?.size && <small>Talla: {selectedVariant.size}</small>}
                         <strong>{formatCOP(product.price)}</strong>
-                        {product.variantId && lines.find((line) => line.product.id === product.id)?.expiryTimes?.[0] && (
+                        {product.variantId && expiry && (
                           <small className="reservation-timer">
-                            Reserva activa · {(() => {
-                              const seconds = Math.max(0, Math.floor((new Date(lines.find((line) => line.product.id === product.id)?.expiryTimes?.[0] ?? now).getTime() - now) / 1000));
-                              return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-                            })()}
+                            Reserva activa · {`${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`}
                           </small>
                         )}
                         <div className="quantity-control">
                           <button
                             aria-label={`Disminuir ${product.name}`}
-                            onClick={() => void removeOne(product.id)}
+                            onClick={() => void removeOne(product)}
                           >
                             <Minus size={13} />
                           </button>
@@ -449,14 +463,15 @@ export function StoreProvider({
                           <button
                             className="remove-line"
                             aria-label={`Quitar ${product.name}`}
-                            onClick={() => void remove(product.id)}
+                            onClick={() => void remove(product)}
                           >
                             <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="cart-footer">
                   <div className="cart-total">

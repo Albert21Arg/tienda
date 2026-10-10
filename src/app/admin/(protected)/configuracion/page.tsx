@@ -83,7 +83,7 @@ export default async function AdminSettingsPage() {
             id: "categories",
             eyebrow: "CATÁLOGO",
             title: "Categorías para cada colección",
-            description: "Crea categorías para Mujer u Hombre. Aparecerán como filtros en la página pública del segmento seleccionado.",
+            description: "Crea categorías para Mujer u Hombre y elimina las que ya no tengan productos o subcategorías asociadas.",
             content: (
               <AdminCategoryForm initialCategories={categories.flatMap((category) =>
                 category.segment ? [{ id: category.id, name: category.name, segment: category.segment }] : [],

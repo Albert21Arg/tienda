@@ -46,7 +46,7 @@ function mapProduct(record: {
     image: images[0] ?? "",
     images,
     description: record.description,
-    sizes: record.variants.flatMap((item) => item.size ? [item.size] : []),
+    sizes: [...new Set(record.variants.flatMap((item) => item.size ? [item.size] : []))],
     variantId: variant?.id,
     inventoryConfigured: true,
     variants: record.variants.map((item) => ({

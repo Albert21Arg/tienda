@@ -62,10 +62,12 @@ Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `previe
 - Inicio/cierre de sesión de administración, permisos granulares almacenados en base, panel, analítica, consulta de pedidos e inventario.
 - Filtrado de productos administrativos por segmento y categoría, edición de datos y descuentos masivos porcentuales o de valor fijo con registro de auditoría.
 - Margen porcentual predeterminado configurable por SuperAdmin para productos nuevos; cada producto conserva su valor de creación, permite editar el margen al actualizarlo y redondea el precio calculado al millar más cercano.
+- Productos con hasta cuatro colores seleccionables por el cliente; el inventario se controla por cada combinación de color y talla.
 - Creación de producto con auditoría y ajuste de inventario con motivo obligatorio; el SuperAdmin puede eliminar productos inactivos o agotados, salvo que tengan historial de pedidos. La eliminación también borra sus variantes, movimientos de inventario, reservas y artículos de carritos, y deja un registro de auditoría.
 - Máquina de estados de pedidos con transiciones validadas y registro de auditoría.
 - Configuración SuperAdmin para cambiar el nombre, el texto bajo la marca, el aviso superior, los datos de contacto y la información de envíos/cambios; también permite subir/quitar el logo PNG.
 - Creación de categorías para Mujer u Hombre desde configuración SuperAdmin; se publican como filtros en la tienda correspondiente y se registran en auditoría.
+- SuperAdmin puede eliminar categorías vacías; la eliminación se bloquea mientras tengan productos o subcategorías y se registra en auditoría.
 - Configuración de imágenes de portada disponible para Admin y SuperAdmin; permite guardar URLs HTTP/HTTPS o restaurar las imágenes predeterminadas de Mujer y Hombre, y audita los cambios.
 
 ## APIs iniciales

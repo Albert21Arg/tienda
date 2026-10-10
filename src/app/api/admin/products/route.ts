@@ -11,6 +11,7 @@ import { calculateSalePrice, MAX_PRODUCT_PRICE } from "@/lib/pricing";
 import { getDefaultMarkupPercent } from "@/lib/pricing-settings.server";
 
 const createVariantSchema = z.object({
+  color: z.string().trim().min(1).max(60).nullable().optional(),
   size: z.string().trim().min(1).max(30).nullable().optional(),
   stockOnHand: z.number().int().min(0),
   stockMin: z.number().int().min(0).default(2),
@@ -38,12 +39,24 @@ const createProductSchema = z.object({
     });
   }
 }).superRefine((product, context) => {
-  const sizes = product.variants.map((variant) => variant.size ?? null);
-  if (new Set(sizes).size !== sizes.length) {
+  const combinations = product.variants.map((variant) =>
+    JSON.stringify([variant.color?.trim().toLocaleLowerCase("es") ?? null, variant.size ?? null]),
+  );
+  if (new Set(combinations).size !== combinations.length) {
     context.addIssue({
       code: "custom",
       path: ["variants"],
-      message: "Cada talla debe ser única.",
+      message: "Cada combinación de color y talla debe ser única.",
+    });
+  }
+  const colors = new Set(
+    product.variants.flatMap((variant) => variant.color ? [variant.color.trim().toLocaleLowerCase("es")] : []),
+  );
+  if (colors.size > 4) {
+    context.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: "Un producto puede tener hasta cuatro colores.",
     });
   }
 });
@@ -93,7 +106,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "El precio de venta calculado supera el máximo permitido." }, { status: 400 });
     }
     const skuBases = input.data.variants.map((variant) =>
-      generateProductSku(input.data.segment, input.data.slug, variant.size),
+      generateProductSku(
+        input.data.segment,
+        input.data.slug,
+        variant.size,
+        variant.color ?? input.data.color,
+      ),
     );
     const existingVariants = await prisma.productVariant.findMany({
       where: { OR: skuBases.map((sku) => ({ sku: { startsWith: sku } })) },
@@ -109,7 +127,7 @@ export async function POST(request: Request) {
         suffix += 1;
       }
       reservedSkus.add(sku);
-      return { ...variant, sku, color: input.data.color || undefined };
+      return { ...variant, sku, color: (variant.color ?? input.data.color) || undefined };
     });
     const productId = randomUUID();
     const [product] = await prisma.$transaction([

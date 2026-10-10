@@ -115,6 +115,7 @@ function formatAction(action: string) {
     SHIPPING_FEE_UPDATE: "Tarifa de envío actualizada",
     USER_OPERATOR_CREATE: "Operario creado",
     CATEGORY_CREATE: "Categoría creada",
+    CATEGORY_DELETE: "Categoría eliminada",
     SITE_BRAND_UPDATE: "Datos de la tienda actualizados",
     HOME_IMAGES_UPDATE: "Imágenes de portada actualizadas",
     EDITORIAL_BANNERS_UPDATE: "Banners de colección actualizados",

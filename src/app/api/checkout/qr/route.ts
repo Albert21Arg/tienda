@@ -199,6 +199,10 @@ async function createQrOrder({
   ));
   d1ExpectChanges(statements);
   for (const item of cart.items) {
+    const selectedOptions = [
+      item.variant.color ? `Color: ${item.variant.color}` : null,
+      item.variant.size ? `Talla: ${item.variant.size}` : null,
+    ].filter((option): option is string => option !== null);
     statements.push(d1Statement(
       `INSERT INTO "OrderItem"
         ("id", "orderId", "productId", "variantId", "nameSnapshot", "skuSnapshot", "unitPrice", "quantity", "createdAt")
@@ -207,7 +211,9 @@ async function createQrOrder({
       orderId,
       item.variant.product.id,
       item.variantId,
-      item.variant.product.name,
+      selectedOptions.length
+        ? `${item.variant.product.name} (${selectedOptions.join(", ")})`
+        : item.variant.product.name,
       item.variant.sku,
       item.variant.priceOverride ?? item.variant.product.basePrice,
       item.quantity,

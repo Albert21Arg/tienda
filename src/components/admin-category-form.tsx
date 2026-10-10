@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Plus, Save } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Category = { id: string; name: string; segment: "MEN" | "WOMEN" };
@@ -43,6 +43,33 @@ export function AdminCategoryForm({ initialCategories }: { initialCategories: Ca
     }
   }
 
+  async function deleteCategory(category: Category) {
+    if (busy || !window.confirm(`¿Eliminar la categoría «${category.name}»? Solo se pueden eliminar categorías sin productos ni subcategorías.`)) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/admin/categories", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId: category.id }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setError(result.error ?? "No fue posible eliminar la categoría.");
+        return;
+      }
+      setSuccess(`Categoría «${category.name}» eliminada.`);
+      router.refresh();
+    } catch {
+      setError("No se pudo conectar con el servidor. Intenta nuevamente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="admin-category-manager">
       <form className="admin-category-form" onSubmit={submit}>
@@ -69,6 +96,15 @@ export function AdminCategoryForm({ initialCategories }: { initialCategories: Ca
           <li key={category.id}>
             <span>{category.name}</span>
             <small>{category.segment === "MEN" ? "Hombre" : "Mujer"}</small>
+            <button
+              type="button"
+              aria-label={`Eliminar categoría ${category.name}`}
+              title="Solo se pueden eliminar categorías sin productos"
+              disabled={busy}
+              onClick={() => void deleteCategory(category)}
+            >
+              <Trash2 size={15} />
+            </button>
           </li>
         ))}
       </ul>

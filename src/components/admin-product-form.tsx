@@ -48,7 +48,8 @@ export function AdminProductForm({
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(-1);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
-  const [stockBySize, setStockBySize] = useState<Record<string, number>>({});
+  const [colors, setColors] = useState([""]);
+  const [stockByVariant, setStockByVariant] = useState<Record<string, number>>({});
   const [images, setImages] = useState([""]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -72,6 +73,10 @@ export function AdminProductForm({
     return [ONE_SIZE];
   }, [selectedCategory]);
   const variantSizes = sizeOptions.filter(({ label }) => selectedSizes.includes(label));
+  const selectedColors = colors.map((color) => color.trim()).filter(Boolean);
+  const colorOptions = selectedColors.length
+    ? selectedColors.map((color) => ({ color, label: color }))
+    : [{ color: undefined, label: "Sin color" }];
 
   useEffect(() => {
     if (!open) return;
@@ -101,7 +106,7 @@ export function AdminProductForm({
     setSelectedSizes(
       /(ropa|prenda)/.test(category.name.toLocaleLowerCase("es")) ? [] : [ONE_SIZE.label],
     );
-    setStockBySize({});
+    setStockByVariant({});
   }
 
   function changeSegment(nextSegment: Segment) {
@@ -110,7 +115,7 @@ export function AdminProductForm({
     setCategoryQuery("");
     setCategoryOpen(false);
     setSelectedSizes([]);
-    setStockBySize({});
+    setStockByVariant({});
   }
 
   function toggleSize(size: string) {
@@ -119,9 +124,10 @@ export function AdminProductForm({
     );
   }
 
-  function setStock(size: string, value: string) {
+  function setStock(color: string | undefined, size: string, value: string) {
     const stock = value === "" ? 0 : Math.max(0, Number(value));
-    setStockBySize((current) => ({ ...current, [size]: stock }));
+    const key = JSON.stringify([color ?? null, size]);
+    setStockByVariant((current) => ({ ...current, [key]: stock }));
   }
 
   function openModal() {
@@ -134,7 +140,8 @@ export function AdminProductForm({
     setCostPrice("");
     setCategoryQuery("");
     setSelectedSizes([]);
-    setStockBySize({});
+    setColors([""]);
+    setStockByVariant({});
     setImages([""]);
     setError("");
   }
@@ -148,6 +155,11 @@ export function AdminProductForm({
     }
     if (variantSizes.length === 0) {
       setError("Selecciona al menos una talla para crear el producto.");
+      return;
+    }
+    const normalizedColors = selectedColors.map((color) => color.toLocaleLowerCase("es"));
+    if (new Set(normalizedColors).size !== normalizedColors.length) {
+      setError("Cada color debe tener un nombre diferente.");
       return;
     }
     const productImages = images.map((image) => image.trim()).filter(Boolean);
@@ -182,12 +194,14 @@ export function AdminProductForm({
           costPrice: Number(form.get("costPrice")),
           images: productImages,
           reason: String(form.get("reason") ?? "").trim(),
-          color: String(form.get("color") ?? "").trim(),
-          variants: variantSizes.map(({ value, label }) => ({
-            size: value,
-            stockOnHand: stockBySize[label] ?? 0,
-            stockMin: Number(form.get("stockMin")),
-          })),
+          variants: colorOptions.flatMap(({ color }) =>
+            variantSizes.map(({ value, label }) => ({
+              color,
+              size: value,
+              stockOnHand: stockByVariant[JSON.stringify([color ?? null, label])] ?? 0,
+              stockMin: Number(form.get("stockMin")),
+            })),
+          ),
         }),
       });
       const result = (await response.json()) as { error?: string };
@@ -270,7 +284,7 @@ export function AdminProductForm({
                 <span className="eyebrow">CATÁLOGO · NUEVA PIEZA</span>
                 <h2 id="admin-create-title">Crear producto</h2>
                 <p id="admin-create-description">
-                  Completa los datos y agrega las tallas con su inventario inicial.
+                  Completa los datos, define hasta cuatro colores y registra el inventario por talla.
                 </p>
               </div>
               <button
@@ -428,10 +442,47 @@ export function AdminProductForm({
                   <small>Precio de venta calculado: <strong>{formatCOP(calculateSalePrice(Number(costPrice), defaultMarkupPercent))}</strong></small>
                 )}
               </label>
-              <label>
-                Color
-                <input name="color" maxLength={60} placeholder="Opcional" />
-              </label>
+              <fieldset className="admin-product-colors-fieldset wide">
+                <legend>Colores disponibles · máximo 4</legend>
+                <p>Agrega los colores para que cada cliente pueda elegir el suyo. Déjalo vacío si no aplica.</p>
+                <div className="admin-product-color-list">
+                  {colors.map((color, index) => (
+                    <div className="admin-product-color-row" key={index}>
+                      <label htmlFor={`new-product-color-${index}`}>Color {index + 1}</label>
+                      <div className="admin-product-image-input-row">
+                        <input
+                          id={`new-product-color-${index}`}
+                          value={color}
+                          maxLength={60}
+                          onChange={(event) =>
+                            setColors((current) => current.map((value, colorIndex) =>
+                              colorIndex === index ? event.target.value : value,
+                            ))
+                          }
+                          placeholder="Ej. Negro, Azul, Rojo"
+                        />
+                        <button
+                          className="admin-product-image-remove"
+                          type="button"
+                          aria-label={`Quitar color ${index + 1}`}
+                          onClick={() => setColors((current) => current.filter((_, colorIndex) => colorIndex !== index))}
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {colors.length < 4 && (
+                  <button
+                    className="button button-outline admin-product-image-add"
+                    type="button"
+                    onClick={() => setColors((current) => [...current, ""])}
+                  >
+                    <Plus size={16} /> Agregar color
+                  </button>
+                )}
+              </fieldset>
               <fieldset className="admin-product-images-fieldset wide">
                 <legend>Fotos del producto</legend>
                 <p>Agrega de 1 a 3 fotos mediante sus URL. La primera será la imagen principal.</p>
@@ -482,8 +533,8 @@ export function AdminProductForm({
                 )}
               </fieldset>
               <fieldset className="admin-size-fieldset wide" disabled={!categoryId}>
-                <legend>Tallas y unidades disponibles</legend>
-                <p>Elige una o varias tallas; cada una tendrá su propio inventario y SKU.</p>
+                <legend>Existencias por color y talla</legend>
+                <p>Elige tallas y registra unidades para cada combinación; cada una tendrá inventario y SKU propios.</p>
                 {sizeOptions.length > 1 ? (
                   <div className="admin-size-options" role="group" aria-label="Selecciona las tallas">
                     {sizeOptions.map(({ label }) => (
@@ -504,22 +555,27 @@ export function AdminProductForm({
                   <span className="admin-one-size-note">Primero selecciona una categoría.</span>
                 )}
                 <div className="admin-size-stock-list">
-                  {variantSizes.map(({ value, label }) => (
-                    <div className="admin-size-stock-row" key={label}>
-                      <strong>{label}</strong>
-                      <label>
-                        Cantidad
-                        <input
-                          aria-label={`Cantidad talla ${label}`}
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={stockBySize[label] ?? 0}
-                          onChange={(event) => setStock(label, event.target.value)}
-                        />
-                      </label>
-                      <code>{skuSlug ? generateProductSku(segment, skuSlug, value) : "SKU sugerido al completar el nombre"}</code>
-                    </div>
+                  {colorOptions.map(({ color, label: colorLabel }) => (
+                    <section className="admin-color-stock-group" key={color ?? "no-color"}>
+                      <h3>{colorLabel}</h3>
+                      {variantSizes.map(({ value, label }) => (
+                        <div className="admin-size-stock-row" key={label}>
+                          <strong>{label}</strong>
+                          <label>
+                            Cantidad
+                            <input
+                              aria-label={`Cantidad ${colorLabel}, talla ${label}`}
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={stockByVariant[JSON.stringify([color ?? null, label])] ?? 0}
+                              onChange={(event) => setStock(color, label, event.target.value)}
+                            />
+                          </label>
+                          <code>{skuSlug ? generateProductSku(segment, skuSlug, value, color) : "SKU sugerido al completar el nombre"}</code>
+                        </div>
+                      ))}
+                    </section>
                   ))}
                   {selectedCategory && !variantSizes.length && (
                     <span className="admin-one-size-note">Selecciona al menos una talla.</span>
