@@ -347,6 +347,15 @@ button { color: inherit; }
 .admin-login-card > p { margin: 0 0 25px; color: var(--muted); font-size: 10px; }
 .admin-login-form { display: flex; flex-direction: column; gap: 9px; }
 .admin-login-form label { margin-top: 8px; font-size: 9px; }
+.admin-pricing-settings { display: grid; justify-items: start; gap: 11px; margin-top: 16px; padding-top: 16px; }
+.admin-pricing-settings > p:first-child { max-width: 680px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.admin-pricing-settings > label { color: #484741; font-size: 13px; }
+.admin-pricing-settings-control { display: flex; width: min(100%,180px); min-height: 44px; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid #dedbd4; background: white; }
+.admin-pricing-settings-control input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; }
+.admin-pricing-settings-control span { color: var(--muted); }
+.admin-pricing-settings .brand-success, .admin-pricing-settings .form-error { margin: 0; }
+.product-price-preview { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.product-price-preview strong { color: var(--ink); }
 .admin-login-form input, .admin-product-form input, .admin-product-form select, .admin-product-form textarea { width: 100%; min-height: 42px; padding: 10px 11px; border: 1px solid #dedbd4; border-radius: 0; outline: none; background: #fff; font-size: 10px; }
 .admin-login-form input:focus, .admin-product-form input:focus, .admin-product-form select:focus, .admin-product-form textarea:focus { border-color: #87725a; }
 .admin-login-form button { margin-top: 12px; }

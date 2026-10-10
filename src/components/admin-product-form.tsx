@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Plus, Search, Trash2, X } from "lucide-react";
 import { generateProductSku } from "@/lib/product-sku";
+import { calculateSalePrice } from "@/lib/pricing";
+import { formatCOP } from "@/lib/catalog";
 
 type Segment = "MEN" | "WOMEN";
 type Category = { id: string; name: string; segment: Segment | null };
@@ -28,13 +30,20 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-export function AdminProductForm({ categories }: { categories: Category[] }) {
+export function AdminProductForm({
+  categories,
+  defaultMarkupPercent,
+}: {
+  categories: Category[];
+  defaultMarkupPercent: number;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [segment, setSegment] = useState<Segment>("WOMEN");
   const [categoryId, setCategoryId] = useState("");
+  const [costPrice, setCostPrice] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(-1);
@@ -122,6 +131,7 @@ export function AdminProductForm({ categories }: { categories: Category[] }) {
     setSlugEdited(false);
     setSegment("WOMEN");
     setCategoryId("");
+    setCostPrice("");
     setCategoryQuery("");
     setSelectedSizes([]);
     setStockBySize({});
@@ -169,7 +179,7 @@ export function AdminProductForm({ categories }: { categories: Category[] }) {
           description: String(form.get("description") ?? "").trim(),
           segment,
           categoryId,
-          basePrice: Number(form.get("price")),
+          costPrice: Number(form.get("costPrice")),
           images: productImages,
           reason: String(form.get("reason") ?? "").trim(),
           color: String(form.get("color") ?? "").trim(),
@@ -403,8 +413,20 @@ export function AdminProductForm({ categories }: { categories: Category[] }) {
                 )}
               </div>
               <label>
-                Precio (COP)
-                <input name="price" type="number" min="1" step="1" required />
+                Valor de creación (COP)
+                <input
+                  name="costPrice"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={costPrice}
+                  onChange={(event) => setCostPrice(event.target.value)}
+                  required
+                />
+                <small>El margen predeterminado de {defaultMarkupPercent}% se sumará automáticamente.</small>
+                {Number(costPrice) > 0 && (
+                  <small>Precio de venta calculado: <strong>{formatCOP(calculateSalePrice(Number(costPrice), defaultMarkupPercent))}</strong></small>
+                )}
               </label>
               <label>
                 Color

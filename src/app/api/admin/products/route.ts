@@ -7,6 +7,8 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { generateProductSku } from "@/lib/product-sku";
 import { parseProductImages } from "@/lib/product-images";
+import { calculateSalePrice, MAX_PRODUCT_PRICE } from "@/lib/pricing";
+import { getDefaultMarkupPercent } from "@/lib/pricing-settings.server";
 
 const createVariantSchema = z.object({
   size: z.string().trim().min(1).max(30).nullable().optional(),
@@ -20,12 +22,21 @@ const createProductSchema = z.object({
   description: z.string().trim().min(1).max(10000),
   segment: z.nativeEnum(Segment),
   categoryId: z.string().min(1),
-  basePrice: z.number().int().positive(),
+  costPrice: z.number().int().positive().optional(),
+  basePrice: z.number().int().positive().optional(),
   previousPrice: z.number().int().positive().optional(),
   images: z.array(z.string().url()).min(1).max(3),
   reason: z.string().trim().min(3).max(500),
   color: z.string().trim().max(60).optional(),
   variants: z.array(createVariantSchema).min(1).max(100),
+}).superRefine((product, context) => {
+  if (product.costPrice === undefined && product.basePrice === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["costPrice"],
+      message: "Ingresa el valor de creación del producto.",
+    });
+  }
 }).superRefine((product, context) => {
   const sizes = product.variants.map((variant) => variant.size ?? null);
   if (new Set(sizes).size !== sizes.length) {
@@ -72,6 +83,15 @@ export async function POST(request: Request) {
   }
 
   try {
+    const costPrice = input.data.costPrice ?? input.data.basePrice;
+    if (costPrice === undefined) {
+      return NextResponse.json({ error: "Ingresa el valor de creación del producto." }, { status: 400 });
+    }
+    const markupPercent = await getDefaultMarkupPercent();
+    const basePrice = calculateSalePrice(costPrice, markupPercent);
+    if (basePrice > MAX_PRODUCT_PRICE) {
+      return NextResponse.json({ error: "El precio de venta calculado supera el máximo permitido." }, { status: 400 });
+    }
     const skuBases = input.data.variants.map((variant) =>
       generateProductSku(input.data.segment, input.data.slug, variant.size),
     );
@@ -101,7 +121,9 @@ export async function POST(request: Request) {
           description: input.data.description,
           segment: input.data.segment,
           categoryId: input.data.categoryId,
-          basePrice: input.data.basePrice,
+          basePrice,
+          costPrice,
+          markupPercent,
           previousPrice: input.data.previousPrice,
           images: JSON.stringify(input.data.images),
           variants: { create: variants },
@@ -113,7 +135,13 @@ export async function POST(request: Request) {
           action: "PRODUCT_CREATE",
           entity: "Product",
           entityId: productId,
-          newValue: { name: input.data.name, slug: input.data.slug } satisfies Prisma.InputJsonObject,
+          newValue: {
+            name: input.data.name,
+            slug: input.data.slug,
+            costPrice,
+            markupPercent,
+            basePrice,
+          } satisfies Prisma.InputJsonObject,
           reason: input.data.reason,
         },
       }),

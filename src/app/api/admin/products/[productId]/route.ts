@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
 import { D1AtomicAssertionError, d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 import { parseProductImages } from "@/lib/product-images";
+import { calculateSalePrice, MAX_MARKUP_PERCENT, MAX_PRODUCT_PRICE } from "@/lib/pricing";
 
 const updateProductSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -13,7 +14,9 @@ const updateProductSchema = z.object({
   description: z.string().trim().min(1).max(10000),
   segment: z.nativeEnum(Segment),
   categoryId: z.string().min(1),
-  basePrice: z.number().int().positive(),
+  costPrice: z.number().int().positive().optional(),
+  markupPercent: z.number().int().min(0).max(MAX_MARKUP_PERCENT).optional(),
+  basePrice: z.number().int().positive().optional(),
   imageUrl: z.string().url(),
   isActive: z.boolean(),
   reason: z.string().trim().min(3).max(500),
@@ -178,6 +181,21 @@ export async function PATCH(
     const existing = await prisma.product.findUnique({ where: { id: productId } });
     if (!existing) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
 
+    const costPrice = input.data.costPrice ??
+      (input.data.basePrice !== undefined ? input.data.basePrice : existing.costPrice);
+    const markupPercent = input.data.markupPercent ??
+      (input.data.costPrice === undefined && input.data.basePrice !== undefined ? 0 : existing.markupPercent);
+    const regularPrice = calculateSalePrice(costPrice, markupPercent);
+    if (regularPrice > MAX_PRODUCT_PRICE) {
+      return NextResponse.json({ error: "El precio de venta calculado supera el máximo permitido." }, { status: 400 });
+    }
+    const discountAmount = existing.previousPrice === null
+      ? 0
+      : Math.max(0, existing.previousPrice - existing.basePrice);
+    const discountedPrice = Math.max(1, regularPrice - discountAmount);
+    const hasDiscount = discountAmount > 0 && regularPrice > discountedPrice;
+    const basePrice = hasDiscount ? discountedPrice : regularPrice;
+    const previousPrice = hasDiscount ? regularPrice : null;
     const existingImages = parseProductImages(existing.images);
     const updatedImages = [input.data.imageUrl, ...existingImages.slice(1)];
     const newValue = {
@@ -186,7 +204,10 @@ export async function PATCH(
       description: input.data.description,
       segment: input.data.segment,
       categoryId: input.data.categoryId,
-      basePrice: input.data.basePrice,
+      basePrice,
+      costPrice,
+      markupPercent,
+      previousPrice,
       images: updatedImages,
       isActive: input.data.isActive,
     } satisfies Prisma.InputJsonObject;
@@ -199,8 +220,10 @@ export async function PATCH(
           description: input.data.description,
           segment: input.data.segment,
           categoryId: input.data.categoryId,
-          basePrice: input.data.basePrice,
-          previousPrice: input.data.basePrice === existing.basePrice ? existing.previousPrice : null,
+          basePrice,
+          costPrice,
+          markupPercent,
+          previousPrice,
           images: JSON.stringify(updatedImages),
           isActive: input.data.isActive,
         },
@@ -218,6 +241,9 @@ export async function PATCH(
             segment: existing.segment,
             categoryId: existing.categoryId,
             basePrice: existing.basePrice,
+            costPrice: existing.costPrice,
+            markupPercent: existing.markupPercent,
+            previousPrice: existing.previousPrice,
             images: existingImages,
             isActive: existing.isActive,
           } satisfies Prisma.InputJsonObject,

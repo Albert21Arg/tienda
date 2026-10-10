@@ -155,6 +155,8 @@ model Product {
   categoryId    String
   category      Category           @relation(fields: [categoryId], references: [id])
   basePrice     Int
+  costPrice     Int                @default(0)
+  markupPercent Int                @default(0)
   previousPrice Int?
   images        String   @default("[]")
   isActive      Boolean            @default(true)

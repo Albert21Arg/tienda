@@ -61,6 +61,7 @@ Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `previe
 - Retiro del carrito libera reservas; proceso idempotente de expiración disponible mediante `/api/cron/expire-reservations`.
 - Inicio/cierre de sesión de administración, permisos granulares almacenados en base, panel, analítica, consulta de pedidos e inventario.
 - Filtrado de productos administrativos por segmento y categoría, edición de datos y descuentos masivos porcentuales o de valor fijo con registro de auditoría.
+- Margen porcentual predeterminado configurable por SuperAdmin para productos nuevos; cada producto conserva su valor de creación y permite editar el margen al actualizarlo.
 - Creación de producto con auditoría y ajuste de inventario con motivo obligatorio; el SuperAdmin puede eliminar productos inactivos o agotados, salvo que tengan historial de pedidos. La eliminación también borra sus variantes, movimientos de inventario, reservas y artículos de carritos, y deja un registro de auditoría.
 - Máquina de estados de pedidos con transiciones validadas y registro de auditoría.
 - Configuración SuperAdmin para cambiar el nombre, el texto bajo la marca, el aviso superior, los datos de contacto y la información de envíos/cambios; también permite subir/quitar el logo PNG.
@@ -77,6 +78,7 @@ Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `previe
 | `POST` | `/api/admin/login` | Iniciar sesión de administración |
 | `POST` | `/api/admin/logout` | Cerrar sesión |
 | `GET/POST` | `/api/admin/products` | Consultar/crear productos (permiso requerido) |
+| `PUT` | `/api/admin/pricing-settings` | Configurar el margen porcentual predeterminado para productos nuevos (solo SuperAdmin) |
 | `DELETE` | `/api/admin/products/{productId}` | Eliminar un producto inactivo o agotado (solo SuperAdmin; bloqueado si tiene pedidos) |
 | `GET/PATCH` | `/api/admin/orders` | Consultar pedidos y validar cambios de estado |
 | `PATCH` | `/api/admin/inventory/{variantId}` | Ajustar stock con motivo |

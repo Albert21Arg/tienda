@@ -15,12 +15,14 @@ import { AdminPaymentSettingsForm } from "@/components/admin-payment-settings-fo
 import { getPaymentSettings, getWompiSetupStatus } from "@/lib/payment-settings.server";
 import { AdminShippingFeeForm } from "@/components/admin-shipping-fee-form";
 import { getShippingFee } from "@/lib/shipping-settings.server";
+import { AdminPricingSettingsForm } from "@/components/admin-pricing-settings-form";
+import { getDefaultMarkupPercent } from "@/lib/pricing-settings.server";
 
 export default async function AdminSettingsPage() {
   const session = await getSession();
   if (!session || !(await hasPermission(session.role, Permission.HOME_CONTENT_MANAGE))) redirect("/admin/pedidos");
   const isSuperAdmin = session.role === "SUPER_ADMIN";
-  const [brand, homeImages, categories, editorialBanners, paymentSettings, shippingFee] = await Promise.all([
+  const [brand, homeImages, categories, editorialBanners, paymentSettings, shippingFee, defaultMarkupPercent] = await Promise.all([
     isSuperAdmin ? getSiteBrand() : Promise.resolve(null),
     getHomeImages(),
     isSuperAdmin
@@ -33,6 +35,7 @@ export default async function AdminSettingsPage() {
     getEditorialBanners(),
     isSuperAdmin ? getPaymentSettings() : Promise.resolve(null),
     getShippingFee(),
+    isSuperAdmin ? getDefaultMarkupPercent() : Promise.resolve(null),
   ]);
   const sections = [
     {
@@ -56,7 +59,18 @@ export default async function AdminSettingsPage() {
       description: "Define la tarifa que se cobra en pedidos menores a $250.000; desde ese monto el envío es gratis.",
       content: <AdminShippingFeeForm initialFee={shippingFee} />,
     },
-    ...(isSuperAdmin && brand && paymentSettings
+    ...(isSuperAdmin && defaultMarkupPercent !== null
+      ? [
+          {
+            id: "product-pricing",
+            eyebrow: "CATÁLOGO · PRECIOS",
+            title: "Margen predeterminado de productos",
+            description: "Define el porcentaje que se suma al valor de creación al agregar productos nuevos.",
+            content: <AdminPricingSettingsForm initialMarkupPercent={defaultMarkupPercent} />,
+          },
+        ]
+      : []),
+    ...(isSuperAdmin && brand && paymentSettings && defaultMarkupPercent !== null
       ? [
           {
             id: "store-identity",

@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { BrandName } from "@/components/brand-mark";
 import { parseProductImages } from "@/lib/product-images";
+import { getDefaultMarkupPercent } from "@/lib/pricing-settings.server";
 
 export default async function AdminProductsPage() {
   const session = await getSession();
@@ -14,17 +15,18 @@ export default async function AdminProductsPage() {
   const canCreate = await hasPermission(session.role, Permission.PRODUCT_CREATE);
   const canUpdate = await hasPermission(session.role, Permission.PRODUCT_UPDATE);
   const canDelete = session.role === "SUPER_ADMIN" && await hasPermission(session.role, Permission.PRODUCT_DELETE);
-  const [products, categories] = await Promise.all([
+  const [products, categories, defaultMarkupPercent] = await Promise.all([
     prisma.product.findMany({
       include: { category: true, variants: { where: { isActive: true } } },
       orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
     }),
     prisma.category.findMany({ where: { isActive: true }, orderBy: [{ segment: "asc" }, { name: "asc" }] }),
+    getDefaultMarkupPercent(),
   ]);
   return (
     <main className="admin-content">
       <div className="admin-page-heading"><div><span className="eyebrow">CATÁLOGO <BrandName /></span><h1>Productos</h1><p>Administra las piezas y variantes disponibles en la tienda.</p></div></div>
-      {canCreate && <AdminProductForm categories={categories.map((category) => ({ id: category.id, name: category.name, segment: category.segment }))} />}
+      {canCreate && <AdminProductForm defaultMarkupPercent={defaultMarkupPercent} categories={categories.map((category) => ({ id: category.id, name: category.name, segment: category.segment }))} />}
       <AdminProductsManager
         canDelete={canDelete}
         canUpdate={canUpdate}
@@ -41,6 +43,8 @@ export default async function AdminProductsPage() {
           variantCount: product.variants.length,
           availableStock: product.variants.reduce((sum, variant) => sum + variant.stockOnHand - variant.stockReserved, 0),
           price: product.basePrice,
+          costPrice: product.costPrice,
+          markupPercent: product.markupPercent,
           previousPrice: product.previousPrice,
           active: product.isActive,
         }))}

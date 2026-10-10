@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { calculateSalePrice, MAX_MARKUP_PERCENT } from "@/lib/pricing";
+import { formatCOP } from "@/lib/catalog";
 
 type Segment = "MEN" | "WOMEN";
 type EditableProduct = {
@@ -12,6 +14,9 @@ type EditableProduct = {
   segment: Segment;
   categoryId: string;
   price: number;
+  costPrice: number;
+  markupPercent: number;
+  previousPrice: number | null;
   active: boolean;
 };
 type Category = { id: string; name: string; segment: Segment | null };
@@ -36,6 +41,18 @@ export function AdminProductEditForm({
     ? product.categoryId
     : segmentCategories[0]?.id ?? "";
   const [categoryId, setCategoryId] = useState(initialCategory);
+  const [costPrice, setCostPrice] = useState(String(product.costPrice));
+  const [markupPercent, setMarkupPercent] = useState(String(product.markupPercent));
+  const regularPrice = Number(costPrice) > 0 && Number(markupPercent) >= 0
+    ? calculateSalePrice(Number(costPrice), Number(markupPercent))
+    : 0;
+  const discountAmount = product.previousPrice === null
+    ? 0
+    : Math.max(0, product.previousPrice - product.price);
+  const discountedPrice = Math.max(1, regularPrice - discountAmount);
+  const calculatedPrice = discountAmount > 0 && regularPrice > discountedPrice
+    ? discountedPrice
+    : regularPrice;
 
   function changeSegment(nextSegment: Segment) {
     setSegment(nextSegment);
@@ -59,7 +76,8 @@ export function AdminProductEditForm({
           description: String(form.get("description") ?? "").trim(),
           segment,
           categoryId,
-          basePrice: Number(form.get("price")),
+          costPrice: Number(form.get("costPrice")),
+          markupPercent: Number(form.get("markupPercent")),
           imageUrl: String(form.get("image") ?? "").trim(),
           isActive: form.get("active") === "on",
           reason: String(form.get("reason") ?? "").trim(),
@@ -93,7 +111,32 @@ export function AdminProductEditForm({
           {segmentCategories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
         </select>
       </label>
-      <label>Precio actual (COP)<input name="price" type="number" min="1" defaultValue={product.price} required /></label>
+      <label>
+        Valor de creación (COP)
+        <input
+          name="costPrice"
+          type="number"
+          min="1"
+          step="1"
+          value={costPrice}
+          onChange={(event) => setCostPrice(event.target.value)}
+          required
+        />
+      </label>
+      <label>
+        Margen (%)
+        <input
+          name="markupPercent"
+          type="number"
+          min="0"
+          max={MAX_MARKUP_PERCENT}
+          step="1"
+          value={markupPercent}
+          onChange={(event) => setMarkupPercent(event.target.value)}
+          required
+        />
+      </label>
+      <p className="product-price-preview wide">Precio de venta calculado: <strong>{formatCOP(calculatedPrice)}</strong></p>
       <label>URL de imagen principal<input name="image" type="url" defaultValue={product.image} required /></label>
       <label className="wide">Descripción<textarea name="description" defaultValue={product.description} required rows={4} /></label>
       <label className="product-active-toggle">

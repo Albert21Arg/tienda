@@ -19,6 +19,8 @@ type ProductRow = {
   variantCount: number;
   availableStock: number;
   price: number;
+  costPrice: number;
+  markupPercent: number;
   previousPrice: number | null;
   active: boolean;
 };
@@ -363,6 +365,9 @@ export function AdminProductsManager({
               segment: editingProduct.segment,
               categoryId: editingProduct.categoryId,
               price: editingProduct.price,
+              costPrice: editingProduct.costPrice,
+              markupPercent: editingProduct.markupPercent,
+              previousPrice: editingProduct.previousPrice,
               active: editingProduct.active,
             }}
             categories={categories}

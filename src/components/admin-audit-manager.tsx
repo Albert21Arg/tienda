@@ -31,6 +31,8 @@ const fieldLabels: Record<string, string> = {
   description: "Descripción",
   segment: "Colección",
   basePrice: "Precio",
+  costPrice: "Valor de creación",
+  markupPercent: "Margen aplicado",
   previousPrice: "Precio anterior",
   discountType: "Tipo de descuento",
   discountValue: "Descuento aplicado",
@@ -102,6 +104,7 @@ function getChanges(event: AuditEvent) {
 function formatAction(action: string) {
   const labels: Record<string, string> = {
     PRODUCT_CREATE: "Producto creado",
+    PRODUCT_MARKUP_DEFAULT_UPDATE: "Margen predeterminado actualizado",
     PRODUCT_UPDATE: "Producto actualizado",
     PRODUCT_DEACTIVATE: "Producto desactivado",
     PRODUCT_DISCOUNT: "Descuento de producto",
