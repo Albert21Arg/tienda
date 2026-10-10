@@ -218,6 +218,15 @@ export function StoreProvider({
     return true;
   }, []);
 
+  const closeCart = () => {
+    setIsOpen(false);
+    if (!qrOrder) {
+      setCheckoutMode(false);
+      setCheckoutError("");
+      checkoutIdempotencyKey.current = null;
+    }
+  };
+
   const cancelReservations = async (ids: string[]) => {
     if (!ids.length) return true;
     try {
@@ -336,7 +345,7 @@ export function StoreProvider({
         </div>
       )}
       {isOpen && (
-        <div className="cart-backdrop" onMouseDown={() => setIsOpen(false)}>
+        <div className="cart-backdrop" onMouseDown={closeCart}>
           <aside
             className="cart-panel"
             aria-label="Tu bolsa de compras"
@@ -350,7 +359,7 @@ export function StoreProvider({
               <button
                 className="icon-button"
                 aria-label="Cerrar bolsa"
-                onClick={() => setIsOpen(false)}
+                onClick={closeCart}
               >
                 <X size={19} />
               </button>
@@ -477,10 +486,12 @@ export function AddToCartButton({
   product,
   className = "",
   disabled = false,
+  onAdded,
 }: {
   product: Product;
   className?: string;
   disabled?: boolean;
+  onAdded?: () => void;
 }) {
   const { add } = useStore();
   const [done, setDone] = useState(false);
@@ -495,6 +506,7 @@ export function AddToCartButton({
         setBusy(false);
         if (!added) return;
         setDone(true);
+        onAdded?.();
         window.setTimeout(() => setDone(false), 1800);
       }}
     >

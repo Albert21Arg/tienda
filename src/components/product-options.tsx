@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AddToCartButton } from "@/components/store-provider";
 import type { Product } from "@/lib/catalog";
 
-export function ProductOptions({ product }: { product: Product }) {
+export function ProductOptions({ product, onAdded }: { product: Product; onAdded?: () => void }) {
   const variants = product.variants ?? [];
   const initial = variants.find((variant) => variant.stockAvailable > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState(initial?.id);
@@ -52,6 +52,7 @@ export function ProductOptions({ product }: { product: Product }) {
         product={selectedProduct}
         className="button-full detail-add"
         disabled={!available}
+        onAdded={onAdded}
       />
       <button className="button button-outline button-full"><span aria-hidden="true">♡</span> Guardar en favoritos</button>
     </>

@@ -138,7 +138,7 @@ export function ProductCard({ product }: { product: Product }) {
               </div>
               <p>{product.description}</p>
               {product.inventoryConfigured ? (
-                <ProductOptions product={product} />
+                <ProductOptions product={product} onAdded={() => setIsPreviewOpen(false)} />
               ) : (
                 <Link className="button button-dark" href={`/producto/${product.slug}`}>
                   Ver producto y opciones <ArrowUpRight size={17} />
