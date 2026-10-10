@@ -120,21 +120,25 @@ export async function POST(request: Request) {
       ),
     );
     const existingVariants = await prisma.productVariant.findMany({
-      where: { OR: skuBases.map((sku) => ({ sku: { startsWith: sku } })) },
+      where: { sku: { in: skuBases } },
       select: { sku: true },
     });
     const reservedSkus = new Set(existingVariants.map(({ sku }) => sku));
-    const variants = input.data.variants.map((variant, index) => {
+    const variants = [];
+    for (const [index, variant] of input.data.variants.entries()) {
       const skuBase = skuBases[index];
       let sku = skuBase;
       let suffix = 2;
-      while (reservedSkus.has(sku)) {
+      while (
+        reservedSkus.has(sku) ||
+        await prisma.productVariant.findUnique({ where: { sku }, select: { sku: true } })
+      ) {
         sku = `${skuBase}-${suffix}`;
         suffix += 1;
       }
       reservedSkus.add(sku);
-      return { ...variant, sku, color: (variant.color ?? input.data.color) || undefined };
-    });
+      variants.push({ ...variant, sku, color: (variant.color ?? input.data.color) || undefined });
+    }
     const productId = randomUUID();
     const [product] = await prisma.$transaction([
       prisma.product.create({
