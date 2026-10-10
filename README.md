@@ -42,6 +42,15 @@ Requisitos: Node.js 20.9 o posterior, npm y Wrangler autenticado para migrar la 
 
    Tienda: <http://localhost:3000> · Administración: <http://localhost:3000/admin/login>. El runtime usa el binding D1 `DB`; si ese binding no está configurado, las consultas deben fallar explícitamente en vez de mostrar datos de muestra como si fueran datos persistidos.
 
+## Despliegue con Cloudflare Workers Builds
+
+En la configuración de builds del Worker conectado al repositorio, usa:
+
+- **Build command:** `npm run build:cloudflare`
+- **Deploy command:** `npx wrangler deploy`
+
+No uses `npm run build` como build command: ejecuta únicamente `next build` y no genera el worker ni la configuración compilada de OpenNext que requiere `wrangler deploy`. El comando `build:cloudflare` conserva `build` para el paso interno de Next.js y, después, genera esos artefactos de Cloudflare.
+
 ## Funcionalidad implementada
 
 - Portada con selector visual Hombre/Mujer, temas por segmento, navegación móvil, búsqueda, filtros de catálogo, fichas de producto, favoritos visuales y bolsa local.
