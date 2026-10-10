@@ -712,6 +712,10 @@ button { color: inherit; }
 .product-edit-actions > span { color: var(--muted); font-size: 14px; }
 .product-edit-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; font: inherit; white-space: nowrap; }
 .product-edit-trigger:hover { background: #eeece6; }
+.product-row-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.product-delete-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 10px; border: 1px solid #d7b6b0; background: transparent; color: #8f483f; cursor: pointer; font: inherit; white-space: nowrap; }
+.product-delete-trigger:hover:not(:disabled) { background: #f4eae7; }
+.product-delete-trigger:disabled { opacity: .55; cursor: not-allowed; }
 .admin-product-price { white-space: nowrap; }
 .admin-product-price strong, .admin-product-price del { display: block; }
 .admin-product-price del { color: var(--muted); font-size: 14px; }

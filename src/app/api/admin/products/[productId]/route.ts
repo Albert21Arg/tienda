@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { Permission, Prisma, Segment } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
+import { D1AtomicAssertionError, d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 import { parseProductImages } from "@/lib/product-images";
 
 const updateProductSchema = z.object({
@@ -17,6 +18,140 @@ const updateProductSchema = z.object({
   isActive: z.boolean(),
   reason: z.string().trim().min(3).max(500),
 });
+
+const deleteProductSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ productId: string }> },
+) {
+  const access = await requirePermission(Permission.PRODUCT_DELETE);
+  if (!access.session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (access.session.role !== "SUPER_ADMIN" || !access.allowed) {
+    return NextResponse.json({ error: "Solo SuperAdmin puede eliminar productos." }, { status: 403 });
+  }
+
+  const input = deleteProductSchema.safeParse(await readJson(request));
+  if (!input.success) {
+    return NextResponse.json({ error: "Escribe un motivo válido para eliminar el producto." }, { status: 400 });
+  }
+
+  const { productId } = await params;
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: {
+      variants: {
+        select: {
+          id: true,
+          sku: true,
+          isActive: true,
+          stockOnHand: true,
+          stockReserved: true,
+        },
+      },
+      _count: { select: { orderItems: true } },
+    },
+  });
+  if (!product) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
+
+  const hasAvailableStock = product.variants.some(
+    (variant) => variant.isActive && variant.stockOnHand > variant.stockReserved,
+  );
+  if (product.isActive && hasAvailableStock) {
+    return NextResponse.json({
+      error: "Solo puedes eliminar productos inactivos o sin existencias disponibles.",
+    }, { status: 409 });
+  }
+  if (product._count.orderItems > 0) {
+    return NextResponse.json({
+      error: "No se puede eliminar: el producto forma parte del historial de pedidos.",
+    }, { status: 409 });
+  }
+
+  const now = new Date().toISOString();
+  const statements = [
+    d1Statement(
+      `INSERT INTO "AuditLog"
+        ("id", "actorId", "action", "entity", "entityId", "previousValue", "newValue", "reason", "createdAt")
+       VALUES (?, ?, 'PRODUCT_DELETE', 'Product', ?, ?, ?, ?, ?)`,
+      randomUUID(),
+      access.session.userId,
+      product.id,
+      JSON.stringify({
+        name: product.name,
+        slug: product.slug,
+        segment: product.segment,
+        basePrice: product.basePrice,
+        isActive: product.isActive,
+        variants: product.variants.map(({ sku, isActive, stockOnHand, stockReserved }) => ({
+          sku,
+          isActive,
+          stockOnHand,
+          stockReserved,
+        })),
+      }),
+      JSON.stringify({ isDeleted: true }),
+      input.data.reason,
+      now,
+    ),
+    d1Statement(
+      `DELETE FROM "CartItem"
+       WHERE "variantId" IN (SELECT "id" FROM "ProductVariant" WHERE "productId" = ?)`,
+      product.id,
+    ),
+    d1Statement(
+      `DELETE FROM "InventoryReservation"
+       WHERE "variantId" IN (SELECT "id" FROM "ProductVariant" WHERE "productId" = ?)`,
+      product.id,
+    ),
+    d1Statement(
+      `DELETE FROM "InventoryMovement"
+       WHERE "variantId" IN (SELECT "id" FROM "ProductVariant" WHERE "productId" = ?)`,
+      product.id,
+    ),
+    d1Statement(
+      `DELETE FROM "Product"
+       WHERE "id" = ?
+         AND ("isActive" = 0 OR NOT EXISTS (
+           SELECT 1
+           FROM "ProductVariant"
+           WHERE "productId" = "Product"."id"
+             AND "isActive" = 1
+             AND "stockOnHand" > "stockReserved"
+         ))
+         AND NOT EXISTS (
+           SELECT 1 FROM "OrderItem" WHERE "productId" = "Product"."id"
+         )`,
+      product.id,
+    ),
+  ];
+  d1ExpectChanges(statements);
+
+  try {
+    await runD1Batch(statements);
+  } catch (error) {
+    if (error instanceof D1AtomicAssertionError) {
+      const latest = await prisma.product.findUnique({
+        where: { id: productId },
+        include: { _count: { select: { orderItems: true } } },
+      });
+      if (!latest) return NextResponse.json({ error: "El producto ya no existe." }, { status: 404 });
+      if (latest._count.orderItems > 0) {
+        return NextResponse.json({
+          error: "No se puede eliminar: el producto forma parte del historial de pedidos.",
+        }, { status: 409 });
+      }
+      return NextResponse.json({
+        error: "El producto cambió o ya no cumple las condiciones para eliminarlo. Actualiza la página e inténtalo de nuevo.",
+      }, { status: 409 });
+    }
+    throw error;
+  }
+
+  return NextResponse.json({ deleted: true, productId });
+}
 
 export async function PATCH(
   request: Request,

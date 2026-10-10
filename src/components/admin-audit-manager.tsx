@@ -47,6 +47,7 @@ const fieldLabels: Record<string, string> = {
   role: "Tipo de acceso",
   email: "Correo",
   isActive: "Estado",
+  isDeleted: "Eliminado",
 };
 
 const orderStatuses: Record<string, string> = {
@@ -104,6 +105,7 @@ function formatAction(action: string) {
     PRODUCT_UPDATE: "Producto actualizado",
     PRODUCT_DEACTIVATE: "Producto desactivado",
     PRODUCT_DISCOUNT: "Descuento de producto",
+    PRODUCT_DELETE: "Producto eliminado",
     INVENTORY_ADJUST: "Ajuste de inventario",
     ORDER_STATUS_UPDATE: "Cambio de estado de pedido",
     PAYMENT_QR_CONFIRM: "Pago QR verificado",

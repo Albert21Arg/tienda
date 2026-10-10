@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Pencil, X } from "lucide-react";
+import { Pencil, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AdminProductEditForm } from "@/components/admin-product-edit-form";
 import { formatCOP } from "@/lib/catalog";
@@ -97,10 +97,12 @@ export function AdminProductsManager({
   products,
   categories,
   canUpdate,
+  canDelete,
 }: {
   products: ProductRow[];
   categories: CategoryOption[];
   canUpdate: boolean;
+  canDelete: boolean;
 }) {
   const [segment, setSegment] = useState<"ALL" | "MEN" | "WOMEN">("ALL");
   const [categoryId, setCategoryId] = useState("ALL");
@@ -109,6 +111,7 @@ export function AdminProductsManager({
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState<ProductRow | null>(null);
   const [discountType, setDiscountType] = useState<DiscountType>("PERCENTAGE");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -225,9 +228,39 @@ export function AdminProductsManager({
         setError(result.error ?? "No fue posible desactivar los productos.");
         return;
       }
+
       setSelectedIds([]);
       setDeactivateOpen(false);
       setSuccess(`${result.updatedCount} producto${result.updatedCount === 1 ? "" : "s"} desactivado${result.updatedCount === 1 ? "" : "s"}.`);
+      window.location.reload();
+    } catch {
+      setError("No se pudo conectar con el servidor. Intenta nuevamente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!deletingProduct) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/admin/products/${deletingProduct.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: String(form.get("reason") ?? "").trim() }),
+      });
+      const result = await response.json() as { error?: string; deleted?: boolean };
+      if (!response.ok || !result.deleted) {
+        setError(result.error ?? "No se pudo eliminar el producto.");
+        return;
+      }
+      setSuccess(`${deletingProduct.name} fue eliminado.`);
+      setDeletingProduct(null);
+      setSelectedIds((current) => current.filter((id) => id !== deletingProduct.id));
       window.location.reload();
     } catch {
       setError("No se pudo conectar con el servidor. Intenta nuevamente.");
@@ -409,8 +442,36 @@ export function AdminProductsManager({
           </form>
         </ProductModal>
       )}
+      {deletingProduct && (
+        <ProductModal
+          title={`Eliminar ${deletingProduct.name}`}
+          description="La eliminación es permanente. No se borran productos que tengan historial de pedidos."
+          onClose={() => {
+            if (busy) return;
+            setDeletingProduct(null);
+            setError("");
+          }}
+        >
+          <form className="product-deactivate-form" onSubmit={deleteProduct}>
+            <p>Se eliminarán el producto, sus variantes, movimientos de inventario, reservas y artículos de carritos. Escribe el motivo para dejarlo registrado en Trazabilidad.</p>
+            <label>
+              Motivo de la eliminación
+              <textarea name="reason" minLength={3} maxLength={500} rows={3} required placeholder="Ej. producto de prueba agotado" />
+            </label>
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <div className="product-discount-actions">
+              <button className="button button-dark product-deactivate-trigger" type="submit" disabled={busy}>
+                {busy ? "Eliminando..." : "Eliminar permanentemente"}
+              </button>
+              <button className="button button-outline" type="button" disabled={busy} onClick={() => setDeletingProduct(null)}>
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </ProductModal>
+      )}
       {success && <p className="product-discount-success" role="status">{success}</p>}
-      {error && !discountOpen && !deactivateOpen && <p className="form-error product-admin-error" role="alert">{error}</p>}
+      {error && !discountOpen && !deactivateOpen && !deletingProduct && <p className="form-error product-admin-error" role="alert">{error}</p>}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -426,7 +487,7 @@ export function AdminProductsManager({
                 </th>
               )}
               <th>Producto</th><th>Segmento</th><th>Categoría</th><th>SKU / variantes</th><th>Disponibles</th><th>Precio</th><th>Estado</th>
-              {canUpdate && <th>Acciones</th>}
+              {(canUpdate || canDelete) && <th>Acciones</th>}
             </tr>
           </thead>
           <tbody>
@@ -457,26 +518,44 @@ export function AdminProductsManager({
                   {product.previousPrice && <del>{formatCOP(product.previousPrice)}</del>}
                 </td>
                 <td><span className={`status-pill ${product.active ? "status-confirmed" : "status-cancelled"}`}>{product.active ? "Activo" : "Inactivo"}</span></td>
-                {canUpdate && (
+                {(canUpdate || canDelete) && (
                   <td>
-                    <button
-                      className="product-edit-trigger"
-                      type="button"
-                      aria-label={`Editar ${product.name}`}
-                      onClick={() => {
-                        setDiscountOpen(false);
-                        setError("");
-                        setEditingProduct(product);
-                      }}
-                    >
-                      <Pencil size={15} /> Editar
-                    </button>
+                    <div className="product-row-actions">
+                      {canUpdate && (
+                        <button
+                          className="product-edit-trigger"
+                          type="button"
+                          aria-label={`Editar ${product.name}`}
+                          onClick={() => {
+                            setDiscountOpen(false);
+                            setError("");
+                            setEditingProduct(product);
+                          }}
+                        >
+                          <Pencil size={15} /> Editar
+                        </button>
+                      )}
+                      {canDelete && (!product.active || product.availableStock <= 0) && (
+                        <button
+                          className="product-delete-trigger"
+                          type="button"
+                          aria-label={`Eliminar ${product.name}`}
+                          disabled={busy}
+                          onClick={() => {
+                            setError("");
+                            setDeletingProduct(product);
+                          }}
+                        >
+                          <Trash2 size={15} /> Eliminar
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>
             ))}
             {visibleProducts.length === 0 && (
-              <tr><td className="table-empty" colSpan={canUpdate ? 9 : 7}>No hay productos que coincidan con estos filtros.</td></tr>
+              <tr><td className="table-empty" colSpan={7 + (canUpdate ? 1 : 0) + (canUpdate || canDelete ? 1 : 0)}>No hay productos que coincidan con estos filtros.</td></tr>
             )}
           </tbody>
         </table>

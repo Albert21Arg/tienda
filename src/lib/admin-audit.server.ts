@@ -50,7 +50,11 @@ export async function getAdminAuditPage({
       al."entity" AS "entity",
       al."entityId" AS "entityId",
       CASE
-        WHEN al."entity" = 'Product' THEN audit_product."name"
+        WHEN al."entity" = 'Product' THEN COALESCE(
+          audit_product."name",
+          json_extract(al."previousValue", '$.name'),
+          'Producto eliminado'
+        )
         WHEN al."entity" = 'ProductVariant' THEN variant_product."name"
         WHEN al."entity" = 'Order' THEN 'Pedido'
         WHEN al."entity" = 'User' THEN COALESCE(audit_user."name", 'Usuario')
