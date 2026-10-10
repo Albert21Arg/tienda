@@ -96,7 +96,7 @@ export async function getAdminAuditPage({
         'quantity', movement."quantity",
         'product', product."name",
         'sku', variant."sku"
-      )::text AS "newValue",
+      ) AS "newValue",
       movement."reason" AS "reason"
     FROM "InventoryMovement" movement
     INNER JOIN "ProductVariant" variant ON variant."id" = movement."variantId"
