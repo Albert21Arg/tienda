@@ -49,7 +49,7 @@ En la configuración de builds del Worker conectado al repositorio, usa:
 - **Build command:** `npm run build:cloudflare`
 - **Deploy command:** `npx wrangler deploy`
 
-No uses `npm run build` como build command: ejecuta únicamente `next build` y no genera el worker ni la configuración compilada de OpenNext que requiere `wrangler deploy`. El comando `build:cloudflare` conserva `build` para el paso interno de Next.js y, después, genera esos artefactos de Cloudflare.
+No uses `npm run build` como build command: ejecuta únicamente `next build` y no genera el worker ni la configuración compilada de OpenNext que requiere `wrangler deploy`. El comando `build:cloudflare` genera Prisma Client, crea los artefactos de OpenNext y copia el WASM del compilador Prisma al directorio del Worker, donde Prisma lo carga en runtime.
 
 Next.js se mantiene fijado en `16.3.8` porque Next.js `16.4.0` introduce `preview-props.json`, que OpenNext Cloudflare `1.20.10` todavía no incorpora al bundle de runtime; actualizarlo antes de que el adaptador incluya ese manifiesto provoca errores 1101 al abrir la tienda.
 
