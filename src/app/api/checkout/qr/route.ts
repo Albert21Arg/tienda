@@ -4,11 +4,10 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { readJson } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
+import { d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 import { getPaymentSettings } from "@/lib/payment-settings.server";
 import { releaseExpiredReservations } from "@/lib/inventory.server";
 import { FREE_SHIPPING_THRESHOLD, getShippingFee } from "@/lib/shipping-settings.server";
-import { d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 
 const checkoutSchema = z.object({
   idempotencyKey: z.uuid(),

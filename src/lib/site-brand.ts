@@ -25,7 +25,6 @@ function parseSiteBrand(value: unknown): SiteBrand | null {
 }
 
 export async function getSiteBrand(): Promise<SiteBrand> {
-  if (!process.env.DATABASE_URL) return DEFAULT_SITE_BRAND;
   const setting = await prisma.platformSetting.findUnique({
     where: { key: BRAND_SETTING_KEY },
     select: { value: true },

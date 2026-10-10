@@ -16,7 +16,6 @@ function isPaymentSettings(value: unknown): value is PaymentSettings {
 }
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
-  if (!process.env.DATABASE_URL) return DEFAULT_PAYMENT_SETTINGS;
   const setting = await prisma.platformSetting.findUnique({
     where: { key: PAYMENT_SETTINGS_KEY },
     select: { value: true },

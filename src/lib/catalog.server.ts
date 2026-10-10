@@ -1,7 +1,6 @@
 import { Segment as DbSegment } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  products as demoProducts,
   type Product,
   type Segment,
 } from "@/lib/catalog";
@@ -60,9 +59,6 @@ function mapProduct(record: {
 }
 
 export async function getStoreProducts(segment?: Segment): Promise<Product[]> {
-  if (!process.env.DATABASE_URL) {
-    return demoProducts.filter((product) => !segment || product.segment === segment);
-  }
   const records = await prisma.product.findMany({
     where: {
       isActive: true,
@@ -81,13 +77,6 @@ export async function getStoreProducts(segment?: Segment): Promise<Product[]> {
 }
 
 export async function getStoreCategories(segment: Segment): Promise<string[]> {
-  if (!process.env.DATABASE_URL) {
-    return [...new Set(
-      demoProducts
-        .filter((product) => product.segment === segment)
-        .map((product) => product.category.split("·")[0].trim()),
-    )];
-  }
   const categories = await prisma.category.findMany({
     where: {
       isActive: true,
@@ -101,9 +90,6 @@ export async function getStoreCategories(segment: Segment): Promise<string[]> {
 }
 
 export async function getStoreProduct(slug: string): Promise<Product | undefined> {
-  if (!process.env.DATABASE_URL) {
-    return demoProducts.find((product) => product.slug === slug);
-  }
   const record = await prisma.product.findUnique({
     where: { slug, isActive: true },
     include: {

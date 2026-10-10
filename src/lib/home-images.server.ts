@@ -10,7 +10,6 @@ function isHomeImages(value: unknown): value is HomeImages {
 }
 
 export async function getHomeImages(): Promise<HomeImages> {
-  if (!process.env.DATABASE_URL) return DEFAULT_HOME_IMAGES;
   const setting = await prisma.platformSetting.findUnique({
     where: { key: HOME_IMAGES_SETTING_KEY },
     select: { value: true },

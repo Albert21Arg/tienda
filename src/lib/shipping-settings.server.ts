@@ -5,7 +5,6 @@ export const SHIPPING_SETTINGS_KEY = "shipping.configuration";
 export { FREE_SHIPPING_THRESHOLD };
 
 export async function getShippingFee(): Promise<number | null> {
-  if (!process.env.DATABASE_URL) return null;
   const setting = await prisma.platformSetting.findUnique({
     where: { key: SHIPPING_SETTINGS_KEY },
     select: { value: true },

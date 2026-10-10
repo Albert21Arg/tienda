@@ -20,7 +20,6 @@ function parseBanner(value: unknown, fallback: EditorialBanner): EditorialBanner
 }
 
 export async function getEditorialBanners(): Promise<EditorialBanners> {
-  if (!process.env.DATABASE_URL) return DEFAULT_EDITORIAL_BANNERS;
   const setting = await prisma.platformSetting.findUnique({
     where: { key: EDITORIAL_BANNERS_SETTING_KEY },
     select: { value: true },
