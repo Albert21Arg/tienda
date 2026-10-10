@@ -1290,6 +1290,9 @@ button { color: inherit; }
 }
 
 @media (max-width: 650px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]),
+  select,
+  textarea { font-size: 16px; }
   .payment-qr-editor { grid-template-columns: minmax(0,1fr); }
   .payment-qr-preview { width: min(100%,280px); min-height: 0; aspect-ratio: 1; }
   .payment-setup-notice ul { display: grid; gap: 6px; }
