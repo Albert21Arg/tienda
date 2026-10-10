@@ -5,9 +5,6 @@ initOpenNextCloudflareForDev();
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  outputFileTracingIncludes: {
-    "/*": ["node_modules/.prisma/client/query_compiler_bg.wasm"],
-  },
   turbopack: {
     rules: {
       "*.css": {
