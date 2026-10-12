@@ -88,15 +88,13 @@ export async function PATCH(request: Request) {
           ));
           d1ExpectChanges(statements);
           statements.push(d1Statement(
-            `UPDATE "CartItem" SET "quantity" = "quantity" - ?, "updatedAt" = ?
-             WHERE "cartId" = ? AND "variantId" = ? AND "quantity" >= ?`,
+            `UPDATE "CartItem" SET "quantity" = MAX("quantity" - ?, 0), "updatedAt" = ?
+             WHERE "cartId" = ? AND "variantId" = ?`,
             reservation.quantity,
             now.toISOString(),
             reservation.cartId,
             reservation.variantId,
-            reservation.quantity,
           ));
-          d1ExpectChanges(statements);
           statements.push(d1Statement(
             `DELETE FROM "CartItem" WHERE "cartId" = ? AND "variantId" = ? AND "quantity" <= 0`,
             reservation.cartId,
