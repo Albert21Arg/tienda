@@ -82,6 +82,7 @@ button { color: inherit; }
 .selector-copy .eyebrow { color: rgba(255,255,255,.78); }
 .selector-copy h1, .selector-copy h2 { margin: 13px 0 22px; color: white; font-family: Georgia,serif; font-size: clamp(64px,9vw,132px); font-weight: 400; letter-spacing: -.065em; line-height: .9; }
 .selector-cta { display: inline-flex; align-items: center; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid rgba(255,255,255,.72); color: white; font-size: 0.824rem; letter-spacing: .1em; text-transform: uppercase; }
+.selector-cta-mobile { display: none; }
 @media (hover: hover) and (pointer: fine) {
   .selector-tile:hover img, .selector-tile:focus-visible img { filter: grayscale(0) saturate(.84); transform: scale(1.045); }
   .selector-women:hover::after, .selector-women:focus-visible::after { opacity: .2; }
@@ -334,6 +335,22 @@ button { color: inherit; }
 .qr-payment-confirm input { min-height: 36px; padding: 7px; border: 1px solid var(--line); background: white; font: inherit; }
 .qr-payment-confirm-button { min-height: 36px; padding: 0 10px; font-size: 11px; }
 .qr-payment-confirm .form-error { margin: 0; }
+.admin-order-actions { min-width: 210px; }
+.admin-order-cancel { min-width: 200px; display: grid; gap: 7px; }
+.admin-order-cancel label { display: grid; gap: 5px; color: #555249; font-size: 11px; line-height: 1.4; }
+.admin-order-cancel input { min-height: 36px; padding: 7px; border: 1px solid var(--line); background: white; font: inherit; }
+.admin-order-cancel small { color: #805b3d; font-size: 10px; line-height: 1.4; white-space: normal; }
+.admin-order-cancel > div { display: flex; align-items: center; gap: 6px; }
+.admin-order-cancel-trigger, .admin-order-cancel-confirm, .admin-order-cancel-close { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 0 9px; border: 1px solid #b98c82; background: transparent; color: #8b3e34; cursor: pointer; font: inherit; font-size: 11px; }
+.admin-order-cancel-confirm { background: #8b3e34; color: white; }
+.admin-order-cancel-trigger:disabled, .admin-order-cancel-confirm:disabled, .admin-order-cancel-close:disabled { cursor: wait; opacity: .6; }
+.admin-order-cancel .form-error { margin: 0; white-space: normal; }
+.admin-password-form { display: grid; width: min(100%,520px); gap: 13px; padding: 0 20px 22px; }
+.admin-password-form label { display: grid; gap: 6px; color: #484741; font-size: 13px; }
+.admin-password-form input { width: 100%; min-height: 44px; padding: 10px 11px; border: 1px solid #dedbd4; background: white; font: inherit; }
+.admin-password-form input:focus { border-color: #87725a; outline: none; }
+.admin-password-form small { color: var(--muted); font-size: 11px; }
+.admin-password-form .brand-success, .admin-password-form .form-error { margin: 0; }
 .cart-shipping-row { margin-top: 7px; }
 .admin-shipping-fee { display: grid; justify-items: start; gap: 11px; margin-top: 16px; padding-top: 16px; }
 .admin-shipping-fee > p:first-child { max-width: 620px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -830,7 +847,10 @@ button { color: inherit; }
   .selector-tile::after { opacity: .12; }
   .selector-index { top: 22px; left: 22px; }
   .selector-copy h1, .selector-copy h2 { margin: 9px 0 14px; font-size: clamp(56px,15vw,76px); }
-  .selector-cta { min-height: 44px; gap: 8px; font-size: 0.824rem; letter-spacing: .04em; }
+  .selector-cta { min-height: 48px; gap: 9px; padding: 0 15px; border: 1px solid rgba(255,255,255,.9); background: rgba(255,255,255,.96); box-shadow: 0 5px 18px #10100e33; color: #24231f; font-size: 0.824rem; font-weight: 600; letter-spacing: .035em; }
+  .selector-cta-desktop { display: none; }
+  .selector-cta-mobile { display: inline; }
+  .selector-cta svg { color: #80694e; }
   .announcement { min-height: 32px; height: auto; font-size: 0.76rem; }
   .site-header { height: 62px; padding: 0 17px; grid-template-columns: 44px minmax(0,1fr) auto; }
   .mobile-menu-toggle { display: inline-flex; justify-self: start; min-width: 44px; min-height: 44px; padding-left: 0; }

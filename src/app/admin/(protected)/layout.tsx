@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { BarChart3, Boxes, ClipboardList, FileClock, LayoutDashboard, LogOut, Settings, ShoppingBag, Users } from "lucide-react";
+import { BarChart3, Boxes, ClipboardList, FileClock, LayoutDashboard, LogOut, Settings, ShoppingBag, UserRound, Users } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { Permission } from "@prisma/client";
@@ -42,6 +42,7 @@ export default async function ProtectedAdminLayout({
           {visibleNavigation.filter(({ allowed }) => allowed).map(({ item: { href, label, icon: Icon } }) => (
             <Link href={href} key={href}><Icon size={17} /><span>{label}</span></Link>
           ))}
+          <Link href="/admin/mi-cuenta"><UserRound size={17} /><span>Mi cuenta</span></Link>
         </nav>
         <div className="admin-sidebar-bottom"><AdminLogout /><Link href="/"><LogOut size={16} /> Ir a la tienda</Link></div>
       </aside>

@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { formatCOP } from "@/lib/catalog";
 import { AdminQrPaymentConfirmButton } from "@/components/admin-qr-payment-confirm-button";
+import { AdminOrderCancelButton } from "@/components/admin-order-cancel-button";
 import Link from "next/link";
 
 const PAGE_SIZE = 10;
@@ -34,6 +35,11 @@ const paymentStatusLabels: Record<string, string> = {
 function guestName(address: Prisma.JsonValue | null | undefined) {
   if (!address || typeof address !== "object" || Array.isArray(address)) return null;
   return typeof address.name === "string" ? address.name : null;
+}
+
+function guestPhone(address: Prisma.JsonValue | null | undefined) {
+  if (!address || typeof address !== "object" || Array.isArray(address)) return null;
+  return typeof address.phone === "string" ? address.phone : null;
 }
 
 export default async function AdminOrdersPage({
@@ -67,9 +73,10 @@ export default async function AdminOrdersPage({
         ],
       }
     : {};
-  const [total, canConfirmPayments] = await Promise.all([
+  const [total, canConfirmPayments, canUpdateOrders] = await Promise.all([
     prisma.order.count({ where }),
     hasPermission(session.role, Permission.PAYMENT_CONFIRM),
+    hasPermission(session.role, Permission.ORDER_UPDATE),
   ]);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(Math.max(requestedPage, 1), pageCount);
@@ -79,7 +86,7 @@ export default async function AdminOrdersPage({
     take: PAGE_SIZE,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
-      customer: { select: { name: true, email: true } },
+      customer: { select: { name: true, email: true, phone: true } },
       shipping: { select: { address: true } },
       payments: { select: { status: true, method: { select: { code: true } } } },
     },
@@ -103,22 +110,31 @@ export default async function AdminOrdersPage({
           <button type="submit" className="inventory-filter-button is-active">Buscar</button>
           {query && <Link className="inventory-filter-button" href="/admin/pedidos">Limpiar</Link>}
         </form>
-        <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha</th><th>Estado del pedido</th><th>Pago</th><th>Total</th>{canConfirmPayments && <th>Acción</th>}</tr></thead><tbody>
+        <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Celular</th><th>Fecha</th><th>Estado del pedido</th><th>Pago</th><th>Total</th>{(canConfirmPayments || canUpdateOrders) && <th>Acción</th>}</tr></thead><tbody>
           {orders.map((order) => {
             const pendingQrPayment = order.payments.some((payment) => payment.status === "PENDING" && payment.method?.code === "QR_MANUAL");
+            const canCancel = order.status === OrderStatus.PENDING_PAYMENT
+              || order.status === OrderStatus.PAID
+              || order.status === OrderStatus.CONFIRMED
+              || order.status === OrderStatus.PREPARING;
             return (
               <tr key={order.id}>
                 <td><strong>{order.orderNumber}</strong></td>
                 <td>{order.customer?.name ?? guestName(order.shipping?.address) ?? order.guestEmail ?? "Compra invitado"}</td>
+                <td>{order.customer?.phone || guestPhone(order.shipping?.address) || "—"}</td>
                 <td>{order.createdAt.toLocaleDateString("es-CO")}</td>
                 <td><span className={`status-pill status-${order.status.toLowerCase()}`}>{orderStatusLabels[order.status]}</span></td>
                 <td>{order.payments.length ? order.payments.map((payment) => paymentStatusLabels[payment.status] ?? "Desconocido").join(", ") : "Sin pago"}</td>
                 <td>{formatCOP(order.total)}</td>
-                {canConfirmPayments && <td>{pendingQrPayment && order.status === "PENDING_PAYMENT" ? <AdminQrPaymentConfirmButton orderId={order.id} /> : "—"}</td>}
+                {(canConfirmPayments || canUpdateOrders) && <td className="admin-order-actions">
+                  {canConfirmPayments && pendingQrPayment && order.status === "PENDING_PAYMENT" && <AdminQrPaymentConfirmButton orderId={order.id} />}
+                  {canUpdateOrders && canCancel && <AdminOrderCancelButton orderId={order.id} orderNumber={order.orderNumber} status={order.status} />}
+                  {!(canConfirmPayments && pendingQrPayment && order.status === "PENDING_PAYMENT") && !(canUpdateOrders && canCancel) && "—"}
+                </td>}
               </tr>
             );
           })}
-          {!orders.length && <tr><td colSpan={canConfirmPayments ? 7 : 6} className="table-empty">{query ? "No hay pedidos que coincidan con la búsqueda." : "Todavía no hay pedidos registrados."}</td></tr>}
+          {!orders.length && <tr><td colSpan={7 + Number(canConfirmPayments || canUpdateOrders)} className="table-empty">{query ? "No hay pedidos que coincidan con la búsqueda." : "Todavía no hay pedidos registrados."}</td></tr>}
         </tbody></table></div>
         <div className="inventory-pagination">
           <p className="inventory-result-count">Mostrando {start}–{end} de {total} pedidos</p>

@@ -27,7 +27,11 @@ export default async function Home() {
           <div className="selector-copy">
             <span className="eyebrow">DETALLE · ACTITUD · ESENCIA</span>
             <h1>Mujer</h1>
-            <span className="selector-cta">Descubrir colección <ArrowRight size={18} /></span>
+            <span className="selector-cta">
+              <span className="selector-cta-desktop">Descubrir colección</span>
+              <span className="selector-cta-mobile">Toca para ver productos</span>
+              <ArrowRight size={18} />
+            </span>
           </div>
         </Link>
         <Link className="selector-tile selector-men theme-hombre" href="/tienda/hombre">
@@ -43,7 +47,11 @@ export default async function Home() {
           <div className="selector-copy">
             <span className="eyebrow">FORMA · FUNCIÓN · CARÁCTER</span>
             <h2>Hombre</h2>
-            <span className="selector-cta">Descubrir colección <ArrowRight size={18} /></span>
+            <span className="selector-cta">
+              <span className="selector-cta-desktop">Descubrir colección</span>
+              <span className="selector-cta-mobile">Toca para ver productos</span>
+              <ArrowRight size={18} />
+            </span>
           </div>
         </Link>
       </section>
