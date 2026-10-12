@@ -339,7 +339,7 @@ button { color: inherit; }
 .admin-order-cancel-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 11px; border: 1px solid #d8c4bd; background: #fffaf8; color: #8b3e34; cursor: pointer; font: inherit; font-size: 12px; transition: background .18s ease, border-color .18s ease; }
 .admin-order-cancel-trigger:hover { border-color: #a96356; background: #f8eeeb; }
 .admin-order-cancel-trigger:focus-visible, .admin-order-cancel-close:focus-visible, .admin-order-cancel-confirm:focus-visible { outline: 2px solid #8b785f; outline-offset: 2px; }
-.admin-order-cancel-dialog { position: fixed; inset: 0; width: min(100% - 32px, 490px); max-width: none; max-height: min(90svh, 720px); margin: auto; padding: 0; overflow: auto; border: 1px solid var(--line); background: #fbfaf7; color: var(--ink); box-shadow: 0 24px 80px #19181338; }
+.admin-order-cancel-dialog { position: fixed; inset: 0; width: min(calc(100% - 32px), 490px); max-width: none; max-height: min(90svh, 720px); margin: auto; padding: 0; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--line); background: #fbfaf7; color: var(--ink); box-shadow: 0 24px 80px #19181338; }
 .admin-order-cancel-dialog::backdrop { background: #1d1c19a6; backdrop-filter: blur(3px); }
 .admin-order-cancel-heading { position: relative; padding: 27px 30px 20px; border-bottom: 1px solid var(--line); background: #f3f0e9; }
 .admin-order-cancel-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 19px; border: 1px solid #dfc5bd; border-radius: 50%; background: #fbf1ed; color: #8b3e34; }

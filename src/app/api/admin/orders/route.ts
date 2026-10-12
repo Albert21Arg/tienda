@@ -4,8 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
-import { d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
-import { releaseExpiredReservations } from "@/lib/inventory.server";
+import { D1AtomicAssertionError, d1ExpectChanges, d1Statement, prisma, runD1Batch } from "@/lib/prisma";
 
 export async function GET() {
   const access = await requirePermission(Permission.ORDER_READ);
@@ -44,7 +43,6 @@ export async function PATCH(request: Request) {
   if (!input.success) return NextResponse.json({ error: "Datos de pedido inválidos." }, { status: 400 });
 
   try {
-    if (input.data.status === OrderStatus.CANCELLED) await releaseExpiredReservations();
     const order = await prisma.order.findUnique({
       where: { id: input.data.orderId },
       include: {
@@ -153,6 +151,11 @@ export async function PATCH(request: Request) {
     const updated = { id: order.id, orderNumber: order.orderNumber, status: input.data.status };
     return NextResponse.json({ order: updated });
   } catch (error) {
+    if (error instanceof D1AtomicAssertionError) {
+      return NextResponse.json({
+        error: "El pedido o su inventario reservado cambió. Actualiza la página y revisa el estado antes de reintentar.",
+      }, { status: 409 });
+    }
     if (error instanceof Error && error.message === "TRANSICION_INVALIDA") {
       return NextResponse.json({ error: "Ese cambio de estado no está permitido." }, { status: 409 });
     }
@@ -165,6 +168,13 @@ export async function PATCH(request: Request) {
     if (error instanceof Error && error.message === "INVENTARIO_RESERVADO_INCONSISTENTE") {
       return NextResponse.json({ error: "No se pudo liberar el inventario reservado. Solicita soporte antes de reintentar." }, { status: 409 });
     }
-    throw error;
+    console.error("[admin/orders] Failed to update order status.", {
+      orderId: input.data.orderId,
+      status: input.data.status,
+      error,
+    });
+    return NextResponse.json({
+      error: "El servidor no pudo actualizar el pedido. Inténtalo nuevamente; si persiste, revisa la trazabilidad.",
+    }, { status: 500 });
   }
 }

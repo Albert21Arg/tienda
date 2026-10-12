@@ -40,9 +40,20 @@ export function AdminOrderCancelButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, status: "CANCELLED", reason }),
       });
-      const result = (await response.json()) as { error?: string };
+      const result: unknown = await response.json().catch(() => null);
+      const responseError =
+        typeof result === "object" &&
+        result !== null &&
+        "error" in result &&
+        typeof result.error === "string"
+          ? result.error
+          : undefined;
       if (!response.ok) {
-        setError(result.error ?? "No se pudo cancelar el pedido.");
+        setError(responseError ?? `El servidor respondió con un error (HTTP ${response.status}).`);
+        return;
+      }
+      if (typeof result !== "object" || result === null || !("order" in result)) {
+        setError("El servidor respondió de forma inesperada. Verifica el estado del pedido antes de reintentar.");
         return;
       }
       setEditing(false);
