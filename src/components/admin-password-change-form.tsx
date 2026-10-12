@@ -40,18 +40,23 @@ export function AdminPasswordChangeForm() {
   }
 
   return (
-    <section className="admin-section-card">
-      <div className="admin-section-heading">
-        <div><span className="eyebrow">SEGURIDAD</span><h2>Cambiar contraseña</h2></div>
-      </div>
-      <form className="admin-password-form" onSubmit={changePassword}>
-        <label>Contraseña actual<input autoComplete="current-password" maxLength={200} minLength={1} name="currentPassword" required type="password" /></label>
-        <label>Nueva contraseña<input autoComplete="new-password" maxLength={200} minLength={10} name="newPassword" required type="password" /><small>Usa al menos 10 caracteres.</small></label>
-        <label>Confirmar nueva contraseña<input autoComplete="new-password" maxLength={200} minLength={10} name="confirmPassword" required type="password" /></label>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {success && <p className="brand-success" role="status">{success}</p>}
-        <button className="button button-dark" disabled={busy} type="submit"><KeyRound size={15} />{busy ? "Cambiando..." : "Actualizar contraseña"}</button>
-      </form>
-    </section>
+    <form className="admin-password-form" onSubmit={changePassword}>
+      <label>
+        <span>Contraseña actual</span>
+        <input autoComplete="current-password" maxLength={200} minLength={1} name="currentPassword" required type="password" />
+      </label>
+      <label>
+        <span>Nueva contraseña</span>
+        <input autoComplete="new-password" maxLength={200} minLength={10} name="newPassword" required type="password" />
+        <small>Mínimo 10 caracteres.</small>
+      </label>
+      <label>
+        <span>Confirma la nueva contraseña</span>
+        <input autoComplete="new-password" maxLength={200} minLength={10} name="confirmPassword" required type="password" />
+      </label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {success && <p className="brand-success" role="status">{success}</p>}
+      <button className="button button-dark" disabled={busy} type="submit"><KeyRound size={15} />{busy ? "Actualizando..." : "Guardar nueva contraseña"}</button>
+    </form>
   );
 }
